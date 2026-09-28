@@ -171,10 +171,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Aktivasi Pertama Kali & Langsung Login (Self-Service Onboarding)
-    const activateAndLogin2FA = async (setupToken, otpCode) => {
+    const activateAndLogin2FA = async (setupToken, otpCode, email) => {
         setLoadingAuth(true);
         try {
-            const res = await axios.post(`${API_AUTH}/setup-2fa-activate`, { setupToken, otpCode });
+            const res = await axios.post(`${API_AUTH}/setup-2fa-activate`, { setupToken, otpCode, email });
             if (res.data?.success) {
                 const userData = res.data.data;
                 const receivedToken = res.data.token || userData?.token;

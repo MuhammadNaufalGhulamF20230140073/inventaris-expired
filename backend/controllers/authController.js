@@ -137,7 +137,7 @@ const login = async (req, res) => {
 
 // 1.1 Aktivasi & Login 2FA Pertama Kali
 const activateAndLogin2FA = async (req, res) => {
-    const { setupToken, otpCode } = req.body;
+    const { setupToken, otpCode, email } = req.body;
     if (!setupToken || !otpCode) return res.status(400).json({ success: false, message: "Sesi setup dan kode 6 digit wajib diisi." });
 
     try {
@@ -154,11 +154,20 @@ const activateAndLogin2FA = async (req, res) => {
             return res.status(400).json({ success: false, message: "Kode 6 digit salah atau tidak sesuai. Pastikan jam pada smartphone Anda diatur otomatis." });
         }
 
-        await prisma.users.update({ where: { id: decoded.id }, data: { totp_secret: decoded.secret, is_2fa_enabled: 1 } });
+        const updateData = {
+            totp_secret: decoded.secret,
+            is_2fa_enabled: 1
+        };
+
+        if (email && typeof email === "string" && email.trim() !== "") {
+            updateData.email = email.trim();
+        }
+
+        await prisma.users.update({ where: { id: decoded.id }, data: updateData });
         const user = await prisma.users.findUnique({ where: { id: decoded.id } });
         if (!user) return res.status(500).json({ success: false, message: "Gagal memproses data akun." });
 
-        return sendLoginResponse(res, user, "Selamat! Microsoft Authenticator berhasil terpasang dan Anda telah berhasil login.");
+        return sendLoginResponse(res, user, "Selamat! Otentikasi dua langkah (2FA) berhasil terpasang dan email akun Anda telah tersimpan.");
     } catch (err) {
         return res.status(401).json({ success: false, message: "Sesi setup QR Code telah kadaluarsa. Silakan ulangi login dari awal." });
     }

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Container, Card, Form, Button, Alert, InputGroup, Badge, Spinner } from "react-bootstrap";
-import { LockFill, PersonFill, EyeFill, EyeSlashFill, ShieldCheck, BoxSeam, PhoneFill, ArrowLeft, KeyFill, QrCode } from "react-bootstrap-icons";
+import { LockFill, PersonFill, EyeFill, EyeSlashFill, ShieldCheck, BoxSeam, PhoneFill, ArrowLeft, KeyFill, QrCode, EnvelopeFill } from "react-bootstrap-icons";
 import { useAuth } from "../context/AuthContext";
 
 function Login() {
@@ -15,6 +15,7 @@ function Login() {
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [userEmail, setUserEmail] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
     const [loading, setLoading] = useState(false);
@@ -55,6 +56,7 @@ function Login() {
                 secret: result.secret
             });
             setTwoFAUser(result.user);
+            setUserEmail(result.user?.email || (username.includes("@") ? username.trim() : ""));
             setStep("2fa_setup");
             setOtpCode("");
             setErrorMsg("");
@@ -85,7 +87,7 @@ function Login() {
         setLoading(true);
 
         try {
-            const result = await activateAndLogin2FA(setupData.setupToken, code);
+            const result = await activateAndLogin2FA(setupData.setupToken, code, userEmail);
             if (!result.success) {
                 setErrorMsg(result.message);
                 setOtpCode("");
@@ -252,14 +254,31 @@ function Login() {
                                     <div className="p-2 border rounded-3 bg-white d-inline-block shadow-sm mb-2">
                                         <img
                                             src={setupData?.qrCodeUrl}
-                                            alt="Scan QR Code Microsoft Authenticator"
+                                            alt="Scan QR Code Authenticator"
                                             style={{ width: "190px", height: "190px" }}
                                         />
                                     </div>
-                                    <div className="small text-muted fw-bold" style={{ fontSize: "0.78rem" }}>
-                                        Akun: <span className="text-primary font-monospace">{twoFAUser?.email || twoFAUser?.username}</span>
+                                    <div className="small text-muted fw-bold mb-2" style={{ fontSize: "0.78rem" }}>
+                                        Akun: <span className="text-primary font-monospace">{twoFAUser?.username}</span>
                                     </div>
                                 </div>
+
+                                <Form.Group className="mb-3 text-start">
+                                    <Form.Label className="small fw-bold text-dark mb-1 d-flex align-items-center gap-1.5">
+                                        <EnvelopeFill className="text-primary" size={14} /> Email Pegawai (Tersimpan Otomatis saat Scan):
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="email"
+                                        placeholder="contoh: pegawai@gedungagung.go.id"
+                                        value={userEmail}
+                                        onChange={(e) => setUserEmail(e.target.value)}
+                                        className="form-control-sm fw-semibold"
+                                        style={{ fontSize: "0.85rem" }}
+                                    />
+                                    <Form.Text className="text-muted" style={{ fontSize: "0.75rem" }}>
+                                        Email ini otomatis tercatat di akun & database saat Anda menverifikasi kode.
+                                    </Form.Text>
+                                </Form.Group>
 
                                 <div className="bg-light p-2.5 rounded-3 border mb-3 text-muted" style={{ fontSize: "0.8rem", lineHeight: "1.5" }}>
                                     <div className="fw-bold text-dark mb-1">Langkah Mudah di HP:</div>
