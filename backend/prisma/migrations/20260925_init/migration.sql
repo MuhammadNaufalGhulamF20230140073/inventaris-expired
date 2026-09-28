@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "barang" (
     "id" SERIAL NOT NULL,
     "kode_produk" VARCHAR(255) NOT NULL,
@@ -147,4 +147,3 @@ CREATE UNIQUE INDEX "unique_role_menu" ON "role_permissions"("role", "menu_key")
 
 -- CreateIndex
 CREATE UNIQUE INDEX "unique_role_kat" ON "role_categories"("role", "nama_kategori");
-
