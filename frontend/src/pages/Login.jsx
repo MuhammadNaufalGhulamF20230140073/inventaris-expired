@@ -167,21 +167,17 @@ function Login() {
                                 <BoxSeam size={36} className="text-white" />
                             )}
                         </div>
-                        <h4 className="fw-bold mb-1">Sistem Inventaris Barang</h4>
+                        <h4 className="fw-bold mb-1">Inventaris Gedung Agung</h4>
                         <p className="small text-white-50 mb-0">
                             {step === "2fa_setup"
-                                ? "Pendaftaran Microsoft Authenticator"
+                                ? "Pengaturan Otentikasi Dua Langkah (2FA)"
                                 : step === "2fa"
-                                ? "Verifikasi Keamanan Microsoft Authenticator"
-                                : "Silakan login ke akun pengguna Anda"}
+                                ? "Verifikasi Otentikasi Dua Langkah (2FA)"
+                                : "Masuk ke Sistem Inventaris"}
                         </p>
                     </div>
 
                     <Card.Body className="p-4 bg-white">
-                        <div className="d-flex align-items-center justify-content-center gap-2 mb-3 py-1.5 px-3 rounded-pill bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-center" style={{ fontSize: "0.8rem" }}>
-                            <ShieldCheck size={16} className="text-primary flex-shrink-0" />
-                            <span className="fw-bold">Proteksi Keamanan: Bcrypt + Microsoft Authenticator</span>
-                        </div>
 
                         {errorMsg && (
                             <Alert variant="danger" dismissible onClose={() => setErrorMsg("")} className="py-2.5 small fw-semibold">
@@ -303,8 +299,8 @@ function Login() {
                                         <span>Menghubungkan akun...</span>
                                     </div>
                                 ) : (
-                                    <div className="text-center py-2 px-3 mb-3 text-muted small fw-semibold bg-light rounded-3 border">
-                                        ✨ Ketik 6 digit angka, sistem otomatis langsung mengaktifkan akun
+                                    <div className="text-center py-2 px-3 mb-3 text-muted small fw-medium bg-light rounded-3 border">
+                                        Masukkan 6 digit angka untuk verifikasi otomatis
                                     </div>
                                 )}
 
@@ -324,20 +320,20 @@ function Login() {
                             <Form onSubmit={(e) => { e.preventDefault(); handleSubmit2FA(); }}>
                                 <div className="text-center mb-3">
                                     <div className="badge bg-primary px-3 py-2 fs-6 mb-2">
-                                        <KeyFill className="me-1" /> Verifikasi Microsoft Authenticator
+                                        <KeyFill className="me-1" /> Verifikasi Kode 2FA
                                     </div>
                                     <p className="small text-dark fw-semibold mb-1">
                                         Akun: <span className="text-primary fw-bold font-monospace">{twoFAUser?.username}</span>
                                         {twoFAUser?.email ? ` (${twoFAUser.email})` : ""}
                                     </p>
                                     <p className="text-muted" style={{ fontSize: "0.825rem" }}>
-                                        Buka aplikasi <strong>Microsoft Authenticator</strong> di HP Anda, lalu masukkan 6 digit kode yang tampil.
+                                        Buka aplikasi authenticator di smartphone Anda, lalu masukkan 6 digit kode yang tampil.
                                     </p>
                                 </div>
 
                                 <Form.Group className="mb-3">
                                     <Form.Label className="small fw-bold text-dark text-center d-block">
-                                        Kode 6 Digit Microsoft Authenticator
+                                        Kode Verifikasi 6 Digit
                                     </Form.Label>
                                     <Form.Control
                                         ref={otpInputRef}
@@ -366,8 +362,8 @@ function Login() {
                                         <span>Memverifikasi kode & masuk...</span>
                                     </div>
                                 ) : (
-                                    <div className="text-center py-2 px-3 mb-3 text-muted small fw-semibold bg-light rounded-3 border">
-                                        ✨ Ketik 6 digit angka dari HP, langsung otomatis masuk
+                                    <div className="text-center py-2 px-3 mb-3 text-muted small fw-medium bg-light rounded-3 border">
+                                        Masukkan 6 digit angka dari aplikasi authenticator
                                     </div>
                                 )}
 
@@ -387,7 +383,7 @@ function Login() {
                         {/* Akun Bawaan Sistem (Hanya tampil di Step 1) */}
                         {step === "credentials" && (
                             <div className="mt-4 pt-3 border-top text-center">
-                                <p className="small text-muted mb-2 fw-semibold">Pilihan Akun Uji Coba Bawaan:</p>
+                                <p className="small text-muted mb-2 fw-medium">Akun Demo:</p>
                                 <div className="d-flex flex-wrap justify-content-center gap-1.5">
                                     <Badge
                                         bg="dark"
