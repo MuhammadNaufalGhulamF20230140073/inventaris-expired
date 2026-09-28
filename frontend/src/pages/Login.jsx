@@ -258,27 +258,10 @@ function Login() {
                                             style={{ width: "190px", height: "190px" }}
                                         />
                                     </div>
-                                    <div className="small text-muted fw-bold mb-2" style={{ fontSize: "0.78rem" }}>
-                                        Akun: <span className="text-primary font-monospace">{twoFAUser?.username}</span>
+                                    <div className="small text-muted fw-bold" style={{ fontSize: "0.78rem" }}>
+                                        Akun: <span className="text-primary font-monospace">{twoFAUser?.email || twoFAUser?.username}</span>
                                     </div>
                                 </div>
-
-                                <Form.Group className="mb-3 text-start">
-                                    <Form.Label className="small fw-bold text-dark mb-1 d-flex align-items-center gap-1.5">
-                                        <EnvelopeFill className="text-primary" size={14} /> Email Pegawai (Tersimpan Otomatis saat Scan):
-                                    </Form.Label>
-                                    <Form.Control
-                                        type="email"
-                                        placeholder="contoh: pegawai@gedungagung.go.id"
-                                        value={userEmail}
-                                        onChange={(e) => setUserEmail(e.target.value)}
-                                        className="form-control-sm fw-semibold"
-                                        style={{ fontSize: "0.85rem" }}
-                                    />
-                                    <Form.Text className="text-muted" style={{ fontSize: "0.75rem" }}>
-                                        Email ini otomatis tercatat di akun & database saat Anda menverifikasi kode.
-                                    </Form.Text>
-                                </Form.Group>
 
                                 <div className="bg-light p-2.5 rounded-3 border mb-3 text-muted" style={{ fontSize: "0.8rem", lineHeight: "1.5" }}>
                                     <div className="fw-bold text-dark mb-1">Langkah Mudah di HP:</div>
