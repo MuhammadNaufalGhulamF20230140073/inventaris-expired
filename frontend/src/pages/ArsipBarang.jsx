@@ -43,7 +43,7 @@ function ArsipBarang() {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedPenerimaan, setSelectedPenerimaan] = useState(null);
 
-    const API_BARANG = "http://localhost:3000/api/barang";
+    const API_BARANG = "/api/barang";
 
     // Load Data Terarsip
     const loadData = async () => {
@@ -277,7 +277,7 @@ function ArsipBarang() {
     // Export Excel Data Terarsip
     const handleExport = async () => {
         try {
-            const response = await axios.get("http://localhost:3000/api/data/export/arsip", {
+            const response = await axios.get("/api/data/export/arsip", {
                 responseType: "blob"
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));

@@ -144,7 +144,7 @@ export default function KartuStok() {
         if (kategoriFilter) params.append("kategori", kategoriFilter);
         if (keyword) params.append("q", keyword);
 
-        const baseUrl = window.location.hostname === "localhost" ? "http://localhost:3000" : "";
+        const baseUrl = window.location.hostname === "localhost" ? "" : "";
         window.open(`${baseUrl}/api/data/export/kartu-stok?${params.toString()}`, "_blank");
     };
 

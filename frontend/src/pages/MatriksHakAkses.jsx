@@ -4,8 +4,8 @@ import { Container, Card, Row, Col, Table, Button, Form, Badge, Alert, Accordion
 import { ShieldLockFill, CheckCircleFill, TagsFill, ListCheck, ExclamationTriangleFill } from "react-bootstrap-icons";
 import { useAuth } from "../context/AuthContext";
 
-const API_USERS = "http://localhost:3000/api/users";
-const API_KATEGORI = "http://localhost:3000/api/kategori";
+const API_USERS = "/api/users";
+const API_KATEGORI = "/api/kategori";
 
 const menuStructure = [
     { key: "dashboard", label: "Dashboard Utama", isParent: true },

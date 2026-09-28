@@ -67,8 +67,8 @@ function BarangExpired({ mode = "only-expired" }) {
     const [showModal, setShowModal] = useState(false);
     const [editData, setEditData] = useState(null);
 
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_KATEGORI = "http://localhost:3000/api/kategori";
+    const API_BARANG = "/api/barang";
+    const API_KATEGORI = "/api/kategori";
 
     const loadCategories = async () => {
         try {

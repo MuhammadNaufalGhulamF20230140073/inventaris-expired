@@ -31,10 +31,10 @@ import {
 import { formatKodeProduk } from "../utils";
 import { useAuth } from "../context/AuthContext";
 
-const API_PEMAKAIAN = "http://localhost:3000/api/pemakaian";
-const API_KATEGORI = "http://localhost:3000/api/kategori";
-const API_BARANG = "http://localhost:3000/api/barang";
-const API_NAMA_BARANG = "http://localhost:3000/api/nama-barang";
+const API_PEMAKAIAN = "/api/pemakaian";
+const API_KATEGORI = "/api/kategori";
+const API_BARANG = "/api/barang";
+const API_NAMA_BARANG = "/api/nama-barang";
 
 const getTodayFormatted = () => {
     const today = new Date();

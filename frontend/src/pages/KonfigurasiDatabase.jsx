@@ -21,7 +21,7 @@ function KonfigurasiDatabase() {
 
     const handleDownloadBackup = async () => {
         try {
-            const res = await axios.get("http://localhost:3000/api/barang");
+            const res = await axios.get("/api/barang");
             if (res.data && res.data.success) {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data.data, null, 2));
                 const downloadAnchor = document.createElement("a");
@@ -53,7 +53,7 @@ function KonfigurasiDatabase() {
     const handleResetAll = async () => {
         if (!window.confirm("PERHATIAN: Apakah Anda yakin ingin MENGOSONGKAN SELURUH ISIAN TABEL TRANSAKSI & DATA BARANG? Tindakan ini tidak dapat dibatalkan!")) return;
         try {
-            const res = await axios.post("http://localhost:3000/api/data/reset-all");
+            const res = await axios.post("/api/data/reset-all");
             if (res.data?.success) {
                 setMessage({ type: "warning", text: res.data.message });
                 setTimeout(() => setMessage(null), 5000);

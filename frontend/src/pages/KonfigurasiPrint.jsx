@@ -52,7 +52,7 @@ function KonfigurasiPrint() {
         try {
             setSaving(true);
             setMessage(null);
-            const res = await axios.post("http://localhost:3000/api/settings", form);
+            const res = await axios.post("/api/settings", form);
             if (res.data && res.data.success) {
                 await fetchSettings();
                 setMessage({ type: "success", text: "Pengaturan Kontrol Print & Kop Dokumen berhasil disimpan!" });

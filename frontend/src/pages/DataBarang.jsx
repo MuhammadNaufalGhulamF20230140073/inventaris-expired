@@ -5,7 +5,7 @@ import { BoxSeam, PlusLg, Trash, PencilFill, GeoAltFill, Tags, Box, LockFill, Un
 import { formatKodeProduk } from "../utils";
 import { useAuth } from "../context/AuthContext";
 
-const API_URL = "http://localhost:3000/api/nama-barang";
+const API_URL = "/api/nama-barang";
 
 const emptyForm = { kode: "", nama: "", kategori: "", sub_kategori: "", satuan: "", lokasi: "", total_stok: "" };
 
@@ -47,9 +47,9 @@ function DataBarang() {
             setLoading(true);
             const [resItems, resKat, resSat, resLok] = await Promise.all([
                 axios.get(API_URL),
-                axios.get("http://localhost:3000/api/kategori"),
-                axios.get("http://localhost:3000/api/satuan"),
-                axios.get("http://localhost:3000/api/lokasi")
+                axios.get("/api/kategori"),
+                axios.get("/api/satuan"),
+                axios.get("/api/lokasi")
             ]);
             if (resItems.data?.success) setItems(resItems.data.data);
             if (resKat.data?.success) setKategoris(resKat.data.data);
@@ -66,7 +66,7 @@ function DataBarang() {
 
     useEffect(() => {
         if (form.kategori && form.kategori.trim() !== "") {
-            axios.get(`http://localhost:3000/api/kategori/sub?kategori=${encodeURIComponent(form.kategori)}`)
+            axios.get(`/api/kategori/sub?kategori=${encodeURIComponent(form.kategori)}`)
                 .then(res => {
                     if (res.data?.success) setSubKategoris(res.data.data);
                 })
@@ -78,7 +78,7 @@ function DataBarang() {
 
     useEffect(() => {
         if (kategoriFilter && kategoriFilter.trim() !== "") {
-            axios.get(`http://localhost:3000/api/kategori/sub?kategori=${encodeURIComponent(kategoriFilter)}`)
+            axios.get(`/api/kategori/sub?kategori=${encodeURIComponent(kategoriFilter)}`)
                 .then(res => {
                     if (res.data?.success) setAvailableSubFilter(res.data.data);
                 })
@@ -232,7 +232,7 @@ function DataBarang() {
             if (subKategoriFilter) params.append("sub_kategori", subKategoriFilter);
             if (search) params.append("q", search);
 
-            const response = await axios.get(`http://localhost:3000/api/data/export/opname?${params.toString()}`, {
+            const response = await axios.get(`/api/data/export/opname?${params.toString()}`, {
                 responseType: "blob",
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));

@@ -51,10 +51,10 @@ function LaporanExpired() {
     const [lokasiFilter, setLokasiFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL"); // Default ALL (Berisiko <= 60 hari)
 
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_KATEGORI = "http://localhost:3000/api/kategori";
-    const API_LOKASI = "http://localhost:3000/api/lokasi";
-    const API_NAMA_BARANG = "http://localhost:3000/api/nama-barang";
+    const API_BARANG = "/api/barang";
+    const API_KATEGORI = "/api/kategori";
+    const API_LOKASI = "/api/lokasi";
+    const API_NAMA_BARANG = "/api/nama-barang";
 
     const loadData = async () => {
         try {

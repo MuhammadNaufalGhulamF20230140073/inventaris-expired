@@ -6,7 +6,7 @@ import {
 } from "react-bootstrap";
 import { PersonBadge, PlusLg, Trash, PencilFill, PersonFill, PersonGear } from "react-bootstrap-icons";
 
-const API_URL = "http://localhost:3000/api/users";
+const API_URL = "/api/users";
 
 function ManajemenUser() {
     const [users, setUsers] = useState([]);

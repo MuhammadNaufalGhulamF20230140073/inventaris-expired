@@ -52,7 +52,7 @@ export function SettingsProvider({ children }) {
 
     const fetchSettings = useCallback(async () => {
         try {
-            const res = await axios.get("http://localhost:3000/api/settings");
+            const res = await axios.get("/api/settings");
             if (res.data && res.data.success && res.data.data) {
                 setSettings(res.data.data);
             }

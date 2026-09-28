@@ -79,8 +79,8 @@ function SemuaBarang() {
 
         try {
             const [resNo, resUsers] = await Promise.all([
-                axios.get(`http://localhost:3000/api/barang/next-no-penerimaan?tanggal=${today}`),
-                axios.get("http://localhost:3000/api/users")
+                axios.get(`/api/barang/next-no-penerimaan?tanggal=${today}`),
+                axios.get("/api/users")
             ]);
 
             if (resNo.data && resNo.data.success) {
@@ -108,7 +108,7 @@ function SemuaBarang() {
     };
 
     const handleDownloadTemplate = () => {
-        window.open("http://localhost:3000/api/data/export/template-import", "_blank");
+        window.open("/api/data/export/template-import", "_blank");
     };
 
     const handleFileChange = (e) => {
@@ -241,7 +241,7 @@ function SemuaBarang() {
         try {
             setImporting(true);
             setImportResult(null);
-            const res = await axios.post("http://localhost:3000/api/data/import/penerimaan", {
+            const res = await axios.post("/api/data/import/penerimaan", {
                 no_penerimaan: importNoPenerimaan,
                 tanggal_masuk: importTanggalMasuk,
                 penerima: importPenerima,
@@ -276,8 +276,8 @@ function SemuaBarang() {
     const [statusExpiredFilter, setStatusExpiredFilter] = useState("");
     const [sortOrder, setSortOrder] = useState("terbaru"); // "terbaru" | "terlama"
 
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_KATEGORI = "http://localhost:3000/api/kategori";
+    const API_BARANG = "/api/barang";
+    const API_KATEGORI = "/api/kategori";
 
     const loadCategories = async () => {
         try {

@@ -54,8 +54,8 @@ function Dashboard({ setMenu }) {
     const [drilldownData, setDrilldownData] = useState([]);
     const [drilldownColor, setDrilldownColor] = useState("");
 
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_DASHBOARD = "http://localhost:3000/api/dashboard";
+    const API_BARANG = "/api/barang";
+    const API_DASHBOARD = "/api/dashboard";
 
     const loadDashboardStats = async () => {
         try {
@@ -101,7 +101,7 @@ function Dashboard({ setMenu }) {
         if (openingFolder) return;
         try {
             setOpeningFolder(true);
-            const res = await axios.post("http://localhost:3000/api/data/open-folder");
+            const res = await axios.post("/api/data/open-folder");
             if (!res.data || !res.data.success) {
                 alert("Gagal membuka folder hasil export: " + (res.data?.message || "Terjadi kesalahan."));
             }

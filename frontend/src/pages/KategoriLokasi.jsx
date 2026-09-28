@@ -31,9 +31,9 @@ function KategoriLokasi() {
     const [loadingSub, setLoadingSub] = useState(false);
     const [newSubKategori, setNewSubKategori] = useState("");
 
-    const API_KAT = "http://localhost:3000/api/kategori";
-    const API_LOK = "http://localhost:3000/api/lokasi";
-    const API_SAT = "http://localhost:3000/api/satuan";
+    const API_KAT = "/api/kategori";
+    const API_LOK = "/api/lokasi";
+    const API_SAT = "/api/satuan";
 
     const loadKategori = async () => {
         try {

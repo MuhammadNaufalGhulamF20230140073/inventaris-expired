@@ -11,8 +11,8 @@ import "./index.css";
 // Automatically redirect API requests to current domain for Ngrok / LAN sharing
 axios.interceptors.request.use((config) => {
   if (config.url) {
-    if (config.url.startsWith("http://localhost:3000")) {
-      config.url = config.url.replace("http://localhost:3000", window.location.origin);
+    if (config.url.startsWith("")) {
+      config.url = config.url.replace("", window.location.origin);
     } else if (config.url.startsWith("http://127.0.0.1:3000")) {
       config.url = config.url.replace("http://127.0.0.1:3000", window.location.origin);
     }

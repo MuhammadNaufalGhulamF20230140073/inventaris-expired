@@ -54,8 +54,8 @@ function LaporanPenerimaan() {
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedPenerimaan, setSelectedPenerimaan] = useState(null);
 
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_KATEGORI = "http://localhost:3000/api/kategori";
+    const API_BARANG = "/api/barang";
+    const API_KATEGORI = "/api/kategori";
 
     // Click outside dropdown handler
     useEffect(() => {
@@ -74,7 +74,7 @@ function LaporanPenerimaan() {
             const [resBarang, resKat, resProd] = await Promise.all([
                 axios.get(API_BARANG),
                 axios.get(API_KATEGORI),
-                axios.get("http://localhost:3000/api/nama-barang")
+                axios.get("/api/nama-barang")
             ]);
             if (resBarang.data?.success) setBarang(resBarang.data.data || []);
             if (resKat.data?.success) setCategories(resKat.data.data || []);
@@ -273,7 +273,7 @@ function LaporanPenerimaan() {
         if (statusExpiredFilter) params.append("statusExpired", statusExpiredFilter);
         if (keyword) params.append("q", keyword);
 
-        const baseUrl = window.location.hostname === "localhost" ? "http://localhost:3000" : "";
+        const baseUrl = window.location.hostname === "localhost" ? "" : "";
         window.open(`${baseUrl}/api/data/export/penerimaan?${params.toString()}`, "_blank");
     };
 

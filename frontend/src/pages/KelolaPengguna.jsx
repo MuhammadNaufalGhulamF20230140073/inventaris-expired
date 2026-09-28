@@ -3,8 +3,8 @@ import axios from "axios";
 import { Container, Card, Row, Col, Table, Button, Form, Modal, Badge, Spinner, InputGroup, Alert } from "react-bootstrap";
 import { PeopleFill, PersonPlusFill, PencilSquare, Trash, Search, FunnelFill, ShieldCheck, QrCode, PhoneFill, ArrowClockwise, KeyFill } from "react-bootstrap-icons";
 
-const API_USERS = "http://localhost:3000/api/users";
-const API_AUTH = "http://localhost:3000/api/auth";
+const API_USERS = "/api/users";
+const API_AUTH = "/api/auth";
 
 const emptyForm = { username: "", email: "", password: "", nama: "", role: "OPERATOR_INVENTARIS", status: "active" };
 
