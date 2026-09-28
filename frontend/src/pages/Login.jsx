@@ -258,10 +258,29 @@ function Login() {
                                             style={{ width: "190px", height: "190px" }}
                                         />
                                     </div>
-                                    <div className="small text-muted fw-bold" style={{ fontSize: "0.78rem" }}>
+                                    <div className="small text-muted fw-bold mb-3" style={{ fontSize: "0.78rem" }}>
                                         Akun: <span className="text-primary font-monospace">{twoFAUser?.email || twoFAUser?.username}</span>
                                     </div>
                                 </div>
+
+                                <Form.Group className="mb-3 text-start">
+                                    <Form.Label className="small fw-semibold text-dark mb-1">
+                                        Email Akun (Tersimpan ke Database):
+                                    </Form.Label>
+                                    <InputGroup size="sm">
+                                        <InputGroup.Text className="bg-light border-end-0 text-muted">
+                                            <EnvelopeFill size={14} />
+                                        </InputGroup.Text>
+                                        <Form.Control
+                                            type="email"
+                                            placeholder="pegawai@gedungagung.go.id"
+                                            value={userEmail}
+                                            onChange={(e) => setUserEmail(e.target.value)}
+                                            className="border-start-0 fw-semibold"
+                                            style={{ fontSize: "0.85rem" }}
+                                        />
+                                    </InputGroup>
+                                </Form.Group>
 
                                 <div className="bg-light p-2.5 rounded-3 border mb-3 text-muted" style={{ fontSize: "0.8rem", lineHeight: "1.5" }}>
                                     <div className="fw-bold text-dark mb-1">Langkah Mudah di HP:</div>
