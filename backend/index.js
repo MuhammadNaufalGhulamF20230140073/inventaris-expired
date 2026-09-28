@@ -66,7 +66,12 @@ if (require("fs").existsSync(indexPath)) {
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error("Backend Error:", err);
-    res.status(500).json({ success: false, message: err.message || "Terjadi kesalahan server internal." });
+    res.status(500).json({
+        success: false,
+        message: err.message || "Terjadi kesalahan server internal.",
+        error: err.message,
+        stack: err.stack
+    });
 });
 
 // Export untuk Vercel (serverless)

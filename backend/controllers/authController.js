@@ -117,7 +117,13 @@ const login = async (req, res) => {
             return sendLoginResponse(res, user, "Login berhasil.");
         }
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Login Error:", err);
+        res.status(500).json({
+            success: false,
+            message: err.message || "Terjadi kesalahan saat login.",
+            error: err.message,
+            stack: err.stack
+        });
     }
 };
 
