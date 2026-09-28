@@ -52,18 +52,13 @@ const login = async (req, res) => {
 
     const cleanIdentifier = username.trim();
     const cleanPassword = password.trim();
-
     try {
         const user = await prisma.users.findFirst({
             where: {
-                AND: [
-                    { status: "active" },
-                    {
-                        OR: [
-                            { username: { equals: cleanIdentifier, mode: "insensitive" } },
-                            { email: { equals: cleanIdentifier, mode: "insensitive", not: "" } }
-                        ]
-                    }
+                status: "active",
+                OR: [
+                    { username: { equals: cleanIdentifier, mode: "insensitive" } },
+                    { email: { equals: cleanIdentifier, mode: "insensitive" } }
                 ]
             }
         });

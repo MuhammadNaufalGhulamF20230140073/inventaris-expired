@@ -15,26 +15,36 @@ const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Middleware CORS & Parser
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/barang", barangRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/data", exportImportRoutes);
-app.use("/api/kategori", kategoriRoutes);
-app.use("/api/lokasi", lokasiRoutes);
-app.use("/api/satuan", satuanRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/nama-barang", namaBarangRoutes);
-app.use("/api/pemakaian", pemakaianRoutes);
-app.use("/api/settings", settingRoutes);
+// Helper: Mount ke /api/... DAN /... agar cocok di Vercel serverless rewrite maupun lokal
+const mountRoute = (routePath, router) => {
+    app.use(`/api${routePath}`, router);
+    app.use(routePath, router);
+};
+
+mountRoute("/auth", authRoutes);
+mountRoute("/barang", barangRoutes);
+mountRoute("/dashboard", dashboardRoutes);
+mountRoute("/data", exportImportRoutes);
+mountRoute("/kategori", kategoriRoutes);
+mountRoute("/lokasi", lokasiRoutes);
+mountRoute("/satuan", satuanRoutes);
+mountRoute("/users", userRoutes);
+mountRoute("/nama-barang", namaBarangRoutes);
+mountRoute("/pemakaian", pemakaianRoutes);
+mountRoute("/settings", settingRoutes);
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get(["/api/health", "/health"], (req, res) => {
     res.json({ success: true, message: "API berjalan normal.", timestamp: new Date().toISOString() });
 });
 
@@ -52,6 +62,12 @@ if (require("fs").existsSync(indexPath)) {
         }
     });
 }
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error("Backend Error:", err);
+    res.status(500).json({ success: false, message: err.message || "Terjadi kesalahan server internal." });
+});
 
 // Export untuk Vercel (serverless)
 module.exports = app;
