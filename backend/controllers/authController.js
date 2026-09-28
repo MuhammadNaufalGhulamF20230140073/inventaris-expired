@@ -1,8 +1,15 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { generateSecret, verifySync, generateURI } = require("otplib");
 const qrcode = require("qrcode");
 const prisma = require("../prismaClient");
+
+let otplibInstance;
+async function getOtplib() {
+    if (!otplibInstance) {
+        otplibInstance = await import("otplib");
+    }
+    return otplibInstance;
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || "inventaris_secret_token_secure_key_2026";
 
@@ -99,6 +106,7 @@ const login = async (req, res) => {
 
         // Setup 2FA baru
         try {
+            const { generateSecret, generateURI } = await getOtplib();
             const secret = generateSecret();
             const issuer = "Inventaris Gedung Agung";
             const accountLabel = user.email && user.email.trim() ? `${user.email} (${user.username})` : user.username;
@@ -139,6 +147,7 @@ const activateAndLogin2FA = async (req, res) => {
         }
 
         const cleanCode = String(otpCode).trim();
+        const { verifySync } = await getOtplib();
         const verification = verifySync({ token: cleanCode, secret: decoded.secret, epochTolerance: 30 });
 
         if (!verification || !verification.valid) {
@@ -169,6 +178,7 @@ const verify2FA = async (req, res) => {
         if (!user.totp_secret) return res.status(400).json({ success: false, message: "Kunci keamanan Microsoft Authenticator belum dikonfigurasi." });
 
         const cleanCode = String(otpCode).trim();
+        const { verifySync } = await getOtplib();
         const verification = verifySync({ token: cleanCode, secret: user.totp_secret, epochTolerance: 30 });
         if (!verification || !verification.valid) {
             return res.status(401).json({ success: false, message: "Kode 6 digit Microsoft Authenticator salah atau telah kadaluarsa." });
@@ -192,6 +202,7 @@ const setup2FA = async (req, res) => {
         });
         if (!user) return res.status(404).json({ success: false, message: "Pengguna tidak ditemukan." });
 
+        const { generateSecret, generateURI } = await getOtplib();
         const secret = generateSecret();
         const issuer = "Inventaris Gedung Agung";
         const accountLabel = user.email && user.email.trim() ? `${user.email} (${user.username})` : user.username;

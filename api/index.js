@@ -8,7 +8,6 @@ module.exports = (req, res) => {
         ["cors", () => require("cors")],
         ["bcryptjs", () => require("bcryptjs")],
         ["jsonwebtoken", () => require("jsonwebtoken")],
-        ["otplib", () => require("otplib")],
         ["qrcode", () => require("qrcode")],
         ["exceljs", () => require("exceljs")],
         ["prismaClient", () => require("../backend/prismaClient")],
