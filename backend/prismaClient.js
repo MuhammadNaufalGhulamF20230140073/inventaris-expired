@@ -1,12 +1,22 @@
 // prismaClient.js - Lazy Singleton Prisma Client untuk Vercel Serverless
 // Mencegah crash modul saat evaluasi awal di Lambda & menghemat koneksi
 
-const { PrismaClient } = require('@prisma/client');
-
+let PrismaClient;
 let instance;
 
 function getPrismaInstance() {
     if (!instance) {
+        if (!PrismaClient) {
+            try {
+                PrismaClient = require('@prisma/client').PrismaClient;
+            } catch (e1) {
+                try {
+                    PrismaClient = require('../node_modules/@prisma/client').PrismaClient;
+                } catch (e2) {
+                    PrismaClient = require('../../node_modules/@prisma/client').PrismaClient;
+                }
+            }
+        }
         if (process.env.NODE_ENV === 'production') {
             instance = new PrismaClient({
                 log: ['error', 'warn'],
