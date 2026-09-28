@@ -12,30 +12,38 @@ const dbConfig = {
     queueLimit: 0
 };
 
-// Buat database jika belum ada menggunakan sync/async connection awal
-const initConn = mysql.createConnection({
-    host: dbConfig.host,
-    port: dbConfig.port,
-    user: dbConfig.user,
-    password: dbConfig.password
-});
+// Pool & Init koneksi MySQL (hanya untuk mode dev lokal)
+let pool;
+let promisePool;
 
-initConn.on("error", (err) => {
-    console.error("MySQL Init Connection Error:", err.message);
-});
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    try {
+        const initConn = mysql.createConnection({
+            host: dbConfig.host,
+            port: dbConfig.port,
+            user: dbConfig.user,
+            password: dbConfig.password
+        });
 
-initConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``, (err) => {
-    if (err) {
-        console.error("Gagal membuat/memeriksa database inventaris_db:", err.message);
-    } else {
-        console.log(`Database MySQL "${dbConfig.database}" siap digunakan.`);
+        initConn.on("error", (err) => {
+            console.error("MySQL Init Connection Error:", err.message);
+        });
+
+        initConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``, (err) => {
+            if (err) {
+                console.error("Gagal membuat/memeriksa database inventaris_db:", err.message);
+            } else {
+                console.log(`Database MySQL "${dbConfig.database}" siap digunakan.`);
+            }
+            initConn.end();
+        });
+
+        pool = mysql.createPool(dbConfig);
+        promisePool = pool.promise();
+    } catch (err) {
+        console.warn("Local MySQL connection skipped/failed:", err.message);
     }
-    initConn.end();
-});
-
-// Pool koneksi MySQL
-const pool = mysql.createPool(dbConfig);
-const promisePool = pool.promise();
+}
 
 // Helper untuk mentranslasikan kueri SQLite ke MySQL secara otomatis
 function convertSqliteToMysql(sql) {

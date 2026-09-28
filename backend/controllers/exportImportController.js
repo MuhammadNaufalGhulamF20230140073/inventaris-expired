@@ -1,16 +1,23 @@
-const db = require("../db");
+const prisma = require("../prismaClient");
 const fs = require("fs");
 const path = require("path");
 const ExcelJS = require("exceljs");
 
 // Folder tempat simpan file export
 const os = require("os");
-const documentsDir = path.join(os.homedir(), "Documents", "InventarisGedungAgung");
+const isVercel = process.env.VERCEL || process.env.NODE_ENV === "production";
+const documentsDir = isVercel
+    ? path.join(os.tmpdir(), "InventarisGedungAgung")
+    : path.join(os.homedir(), "Documents", "InventarisGedungAgung");
 const EXPORTS_DIR = path.join(documentsDir, "exports");
 
 // Pastikan folder exports ada
-if (!fs.existsSync(EXPORTS_DIR)) {
-    fs.mkdirSync(EXPORTS_DIR, { recursive: true });
+try {
+    if (!fs.existsSync(EXPORTS_DIR)) {
+        fs.mkdirSync(EXPORTS_DIR, { recursive: true });
+    }
+} catch (err) {
+    console.warn("Could not create EXPORTS_DIR:", err.message);
 }
 
 // ==========================
@@ -45,20 +52,25 @@ function getSystemSettings(callback) {
         jabatan_penanggung_jawab: "Kepala Subbagian Rumah Tangga & Perlengkapan"
     };
 
-    db.all("SELECT key_name, value_text FROM pengaturan", [], (err, rows) => {
-        if (err || !rows || rows.length === 0) {
-            return callback(defaultSettings);
-        }
-        const settings = { ...defaultSettings };
-        rows.forEach(r => {
-            if (r.key_name === "threshold_kritis" || r.key_name === "threshold_diperhatikan") {
-                settings[r.key_name] = Number(r.value_text) || defaultSettings[r.key_name];
-            } else if (r.value_text && r.value_text.trim() !== "") {
-                settings[r.key_name] = r.value_text;
+    prisma.pengaturan.findMany()
+        .then(rows => {
+            if (!rows || rows.length === 0) {
+                return callback(defaultSettings);
             }
+            const settings = { ...defaultSettings };
+            rows.forEach(r => {
+                if (r.key_name === "threshold_kritis" || r.key_name === "threshold_diperhatikan") {
+                    settings[r.key_name] = Number(r.value_text) || defaultSettings[r.key_name];
+                } else if (r.value_text && r.value_text.trim() !== "") {
+                    settings[r.key_name] = r.value_text;
+                }
+            });
+            callback(settings);
+        })
+        .catch(err => {
+            console.error("Error getSystemSettings:", err.message);
+            callback(defaultSettings);
         });
-        callback(settings);
-    });
 }
 
 // ==========================
