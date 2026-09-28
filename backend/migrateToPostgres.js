@@ -91,7 +91,7 @@ async function migrate() {
         } catch (_) { /* tabel mungkin belum ada di SQLite lama */ }
         console.log(`Migrasi ${subKatRows.length} baris → sub_kategori`);
         for (const r of subKatRows) {
-            await prisma.sub_kategori.upsert({
+            await prisma.subKategori.upsert({
                 where: {
                     kategori_id_nama_sub_kategori: {
                         kategori_id: r.kategori_id,
@@ -113,7 +113,7 @@ async function migrate() {
         } catch (_) { }
         console.log(`Migrasi ${namaBarangRows.length} baris → nama_barang`);
         for (const r of namaBarangRows) {
-            await prisma.nama_barang.upsert({
+            await prisma.namaBarang.upsert({
                 where: { nama: r.nama },
                 update: {},
                 create: {
@@ -128,7 +128,7 @@ async function migrate() {
         }
 
         // ── 7. barang ──────────────────────────────────────────────────────
-        const barangRows = await readSqlite(sqliteDb, "SELECT * FROM barang");
+        const barangRows = await readSqlite(sqliteDb, "SELECT rowid AS id, * FROM barang");
         console.log(`Migrasi ${barangRows.length} baris → barang`);
         for (const r of barangRows) {
             await prisma.barang.upsert({
@@ -192,28 +192,46 @@ async function migrate() {
             });
         }
 
-        // ── 9. users ───────────────────────────────────────────────────────
-        let userRows = [];
-        try {
-            userRows = await readSqlite(sqliteDb, "SELECT * FROM users");
-        } catch (_) { }
-        console.log(`Migrasi ${userRows.length} baris → users`);
-        for (const r of userRows) {
-            if (!r.username || !r.password) continue; // skip baris tidak valid
+        // ── 9. users (Seed Akun Login Bawaan) ──────────────────────────────
+        const bcrypt = require("bcryptjs");
+        const defaultUsers = [
+            {
+                username: "admin",
+                email: "admin@gedungagung.id",
+                password: bcrypt.hashSync("admin123", 10),
+                nama: "Administrator Sistem",
+                role: "ADMIN",
+                status: "active",
+            },
+            {
+                username: "operator_inv",
+                email: "inventaris@gedungagung.id",
+                password: bcrypt.hashSync("operator123", 10),
+                nama: "Petugas Inventaris",
+                role: "OPERATOR_INVENTARIS",
+                status: "active",
+            },
+            {
+                username: "operator_poli",
+                email: "poliklinik@gedungagung.id",
+                password: bcrypt.hashSync("operator123", 10),
+                nama: "Petugas Poliklinik",
+                role: "OPERATOR_POLIKLINIK",
+                status: "active",
+            },
+        ];
+
+        console.log(`Membuat ${defaultUsers.length} akun pengguna default...`);
+        for (const u of defaultUsers) {
             await prisma.users.upsert({
-                where: { username: r.username },
-                update: {},
-                create: {
-                    username: r.username,
-                    email: r.email || "",
-                    password: r.password,
-                    nama: r.nama || r.username,
-                    role: r.role || "OPERATOR_INVENTARIS",
-                    status: r.status || "active",
-                    totp_secret: r.totp_secret || null,
-                    is_2fa_enabled: r.is_2fa_enabled || 0,
-                    created_at: r.created_at ? new Date(r.created_at) : new Date(),
+                where: { username: u.username },
+                update: {
+                    email: u.email,
+                    nama: u.nama,
+                    role: u.role,
+                    status: u.status,
                 },
+                create: u,
             });
         }
 
@@ -238,11 +256,71 @@ async function migrate() {
         } catch (_) { }
         console.log(`Migrasi ${rolePermRows.length} baris → role_permissions`);
         for (const r of rolePermRows) {
-            await prisma.role_permissions.upsert({
+            await prisma.rolePermissions.upsert({
                 where: { role_menu_key: { role: r.role, menu_key: r.menu_key } },
                 update: { is_visible: r.is_visible ?? 1 },
                 create: { role: r.role, menu_key: r.menu_key, is_visible: r.is_visible ?? 1 },
             });
+        }
+
+        if (rolePermRows.length === 0) {
+            console.log("Menambahkan hak akses menu (role_permissions) bawaan...");
+            const defaultPermissions = [
+                ['ADMIN', 'dashboard', 1],
+                ['ADMIN', 'master_barang', 1],
+                ['ADMIN', 'penerimaan', 1],
+                ['ADMIN', 'pemakaian', 1],
+                ['ADMIN', 'laporan', 1],
+                ['ADMIN', 'laporan_expired', 1],
+                ['ADMIN', 'rekap_penerimaan', 1],
+                ['ADMIN', 'rekap_pemakaian', 1],
+                ['ADMIN', 'arsip', 1],
+                ['ADMIN', 'pengaturan', 1],
+                ['ADMIN', 'kelola_pengguna', 1],
+
+                ['OPERATOR_INVENTARIS', 'dashboard', 1],
+                ['OPERATOR_INVENTARIS', 'master_barang', 1],
+                ['OPERATOR_INVENTARIS', 'penerimaan', 1],
+                ['OPERATOR_INVENTARIS', 'pemakaian', 1],
+                ['OPERATOR_INVENTARIS', 'laporan', 1],
+                ['OPERATOR_INVENTARIS', 'laporan_expired', 1],
+                ['OPERATOR_INVENTARIS', 'rekap_penerimaan', 1],
+                ['OPERATOR_INVENTARIS', 'rekap_pemakaian', 1],
+                ['OPERATOR_INVENTARIS', 'arsip', 1],
+                ['OPERATOR_INVENTARIS', 'pengaturan', 0],
+                ['OPERATOR_INVENTARIS', 'kelola_pengguna', 0],
+
+                ['OPERATOR_POLIKLINIK', 'dashboard', 1],
+                ['OPERATOR_POLIKLINIK', 'master_barang', 0],
+                ['OPERATOR_POLIKLINIK', 'penerimaan', 0],
+                ['OPERATOR_POLIKLINIK', 'pemakaian', 1],
+                ['OPERATOR_POLIKLINIK', 'laporan', 1],
+                ['OPERATOR_POLIKLINIK', 'laporan_expired', 0],
+                ['OPERATOR_POLIKLINIK', 'rekap_penerimaan', 0],
+                ['OPERATOR_POLIKLINIK', 'rekap_pemakaian', 1],
+                ['OPERATOR_POLIKLINIK', 'arsip', 0],
+                ['OPERATOR_POLIKLINIK', 'pengaturan', 0],
+                ['OPERATOR_POLIKLINIK', 'kelola_pengguna', 0],
+
+                ['PEMAKAI', 'dashboard', 1],
+                ['PEMAKAI', 'master_barang', 0],
+                ['PEMAKAI', 'penerimaan', 0],
+                ['PEMAKAI', 'pemakaian', 1],
+                ['PEMAKAI', 'laporan', 1],
+                ['PEMAKAI', 'laporan_expired', 0],
+                ['PEMAKAI', 'rekap_penerimaan', 0],
+                ['PEMAKAI', 'rekap_pemakaian', 1],
+                ['PEMAKAI', 'arsip', 0],
+                ['PEMAKAI', 'pengaturan', 0],
+                ['PEMAKAI', 'kelola_pengguna', 0],
+            ];
+            for (const [role, menu_key, is_visible] of defaultPermissions) {
+                await prisma.rolePermissions.upsert({
+                    where: { role_menu_key: { role, menu_key } },
+                    update: { is_visible },
+                    create: { role, menu_key, is_visible },
+                });
+            }
         }
 
         // ── 12. role_categories ────────────────────────────────────────────
@@ -252,7 +330,7 @@ async function migrate() {
         } catch (_) { }
         console.log(`Migrasi ${roleCatRows.length} baris → role_categories`);
         for (const r of roleCatRows) {
-            await prisma.role_categories.upsert({
+            await prisma.roleCategories.upsert({
                 where: { role_nama_kategori: { role: r.role, nama_kategori: r.nama_kategori } },
                 update: {},
                 create: { role: r.role, nama_kategori: r.nama_kategori },
