@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "cd frontend && npm install && npm run build",
     "postinstall": "prisma generate --schema=backend/prisma/schema.prisma"
   },
   "dependencies": {
