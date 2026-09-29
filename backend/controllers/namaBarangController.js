@@ -43,7 +43,7 @@ const syncMasterDataHelper = async (kategori, sub_kategori, satuan, lokasi) => {
             });
             if (sub_kategori && sub_kategori.trim() !== "") {
                 await prisma.subKategori.upsert({
-                    where: { unique_kategori_sub: { kategori_id: kat.id, nama_sub_kategori: sub_kategori.trim() } },
+                    where: { kategori_id_nama_sub_kategori: { kategori_id: kat.id, nama_sub_kategori: sub_kategori.trim() } },
                     update: {},
                     create: { kategori_id: kat.id, nama_sub_kategori: sub_kategori.trim() }
                 });

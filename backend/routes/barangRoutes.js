@@ -33,6 +33,8 @@ router.get("/next-no-penerimaan", getNextNoPenerimaan);
 router.post("/batch", createBatchPenerimaan);
 router.get("/penerimaan/:no_penerimaan", getBarangByNoPenerimaan);
 router.put("/batch/:no_penerimaan", updateBatchPenerimaan);
+// Alias PUT /penerimaan/:no_penerimaan untuk update (konsisten dengan GET)
+router.put("/penerimaan/:no_penerimaan", updateBatchPenerimaan);
 
 // ======================
 // CRUD
@@ -58,6 +60,9 @@ router.get("/arsip", getArsip);
 
 router.put("/arsip-penerimaan/:no_penerimaan", arsipkanBatchPenerimaan);
 router.put("/pulihkan-penerimaan/:no_penerimaan", pulihkanBatchPenerimaan);
+// Alias RESTful
+router.put("/penerimaan/:no_penerimaan/arsip", arsipkanBatchPenerimaan);
+router.put("/penerimaan/:no_penerimaan/pulihkan", pulihkanBatchPenerimaan);
 router.put("/arsip/:kode_produk", arsipkanBarang);
 router.put("/pulihkan/:kode_produk", pulihkanBarang);
 

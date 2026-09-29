@@ -32,8 +32,9 @@ model Barang {
 
 // 2. Tabel Kategori
 model Kategori {
-  id            Int    @id @default(autoincrement())
-  nama_kategori String @unique @db.VarChar(255)
+  id            Int           @id @default(autoincrement())
+  nama_kategori String        @unique @db.VarChar(255)
+  sub_kategoris SubKategori[]
 
   @@map("kategori")
 }
@@ -100,9 +101,10 @@ model Pemakaian {
 
 // 8. Tabel Sub Kategori
 model SubKategori {
-  id                Int    @id @default(autoincrement())
+  id                Int      @id @default(autoincrement())
   kategori_id       Int
-  nama_sub_kategori String @db.VarChar(255)
+  nama_sub_kategori String   @db.VarChar(255)
+  kategori          Kategori @relation(fields: [kategori_id], references: [id], onDelete: Cascade)
 
   @@unique([kategori_id, nama_sub_kategori], map: "unique_kategori_sub")
   @@map("sub_kategori")

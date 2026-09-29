@@ -45,13 +45,6 @@ const deleteKategori = async (req, res) => {
 const getSubKategori = async (req, res) => {
     const { kategori_id, kategori } = req.query;
     try {
-        const where = {};
-        if (kategori_id) {
-            where.kategori_id = parseInt(kategori_id);
-        } else if (kategori) {
-            where.kategori = { nama_kategori: kategori };
-        }
-
         const rows = await prisma.subKategori.findMany({
             where: kategori_id ? { kategori_id: parseInt(kategori_id) } : undefined,
             include: { kategori: true },
@@ -61,7 +54,7 @@ const getSubKategori = async (req, res) => {
             ]
         });
 
-        // Filter by kategori name jika ada
+        // Filter by kategori name in-memory jika ada
         const filtered = kategori
             ? rows.filter(r => r.kategori?.nama_kategori === kategori)
             : rows;
@@ -73,7 +66,7 @@ const getSubKategori = async (req, res) => {
             nama_kategori: r.kategori?.nama_kategori || ""
         }));
 
-        res.json({ success: true, data: result });
+        res.json({ success: true, total: result.length, data: result });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
