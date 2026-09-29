@@ -340,7 +340,7 @@ function Dashboard({ setMenu }) {
                             Barang yang sudah kedaluwarsa atau akan kedaluwarsa dalam 30 hari ke depan.
                         </span>
                     </div>
-                    <Button variant="outline-primary" size="sm" onClick={() => setMenu && setMenu("expired")}>
+                    <Button variant="outline-primary" size="sm" onClick={() => setMenu && setMenu("pemantauan-expired")}>
                         Lihat Semua Expired
                     </Button>
                 </div>

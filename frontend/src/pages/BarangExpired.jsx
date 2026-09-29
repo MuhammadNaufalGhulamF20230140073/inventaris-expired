@@ -47,7 +47,7 @@ function getColumnLetter(colIndex) {
     return letter;
 }
 
-function BarangExpired({ mode = "only-expired" }) {
+function BarangExpired({ mode = "all-monitoring" }) {
     const isMonitoringMode = mode === "all-monitoring";
     const { isCategoryAllowed } = useAuth();
     const { settings, getExpiredInfo, getEffectiveSisaHari } = useSettings();

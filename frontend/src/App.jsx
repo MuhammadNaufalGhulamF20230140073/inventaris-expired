@@ -236,7 +236,7 @@ function MainLayout() {
           <Route path="/laporan-pemakaian" element={<LaporanPemakaian />} />
           <Route path="/laporan-expired" element={<LaporanExpired />} />
 
-          <Route path="/expired" element={<BarangExpired mode="only-expired" />} />
+          <Route path="/expired" element={<BarangExpired mode="all-monitoring" />} />
           <Route path="/pemantauan-expired" element={<BarangExpired mode="all-monitoring" />} />
 
           <Route path="/arsip" element={<ArsipBarang />} />
