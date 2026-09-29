@@ -128,7 +128,8 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                 setNoPenerimaan(existingNoPenerimaan);
 
                 const fallbackItem = {
-                    idDraft: editData.kode_produk || Date.now(),
+                    idDraft: editData.id || editData.kode_produk || Date.now(),
+                    id: editData.id,         // ← WAJIB: agar backend bisa update by ID
                     isExisting: true,
                     kode_produk: editData.kode_produk || "",
                     nama_produk: editData.nama_produk || "",
@@ -138,7 +139,7 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                     jumlah: parseInt(editData.jumlah, 10) || 1,
                     tanggal_expired: editData.tanggal_expired || "",
                     lokasi: editData.lokasi || "",
-                    is_no_expired: Boolean(editData.is_no_expired) || (editData.sisa_hari !== undefined && editData.sisa_hari > 365) ? 1 : 0
+                    is_no_expired: Number(editData.is_no_expired) === 1 ? 1 : 0
                 };
 
                 if (existingNoPenerimaan) {
@@ -146,7 +147,8 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                         .then(res => {
                             if (res.data?.success && res.data.data && res.data.data.length > 0) {
                                 const mapped = res.data.data.map((r, idx) => ({
-                                    idDraft: r.kode_produk || (Date.now() + idx),
+                                    idDraft: r.id || r.kode_produk || (Date.now() + idx),
+                                    id: r.id,        // ← WAJIB: agar backend bisa update by ID
                                     isExisting: true,
                                     kode_produk: r.kode_produk || "",
                                     nama_produk: r.nama_produk || "",
@@ -418,8 +420,9 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
 
     const handleRemoveFromCart = (itemToRemove) => {
         if (window.confirm(`Hapus "${itemToRemove.nama_produk}" dari penerimaan ini?`)) {
-            if (itemToRemove.isExisting && itemToRemove.kode_produk) {
-                setDeletedItems(prev => [...prev, itemToRemove.kode_produk]);
+            if (itemToRemove.isExisting && (itemToRemove.id || itemToRemove.kode_produk)) {
+                // Kirim object {id, kode_produk} agar backend bisa hapus by ID yang spesifik
+                setDeletedItems(prev => [...prev, { id: itemToRemove.id, kode_produk: itemToRemove.kode_produk }]);
             }
             if (editingCartId === itemToRemove.idDraft) {
                 handleCancelEditCartItem();
