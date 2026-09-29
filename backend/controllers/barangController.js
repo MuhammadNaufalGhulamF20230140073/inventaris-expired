@@ -545,10 +545,10 @@ const updateBatchPenerimaan = async (req, res) => {
         // Hapus item yang dihapus
         if (deletedItems && Array.isArray(deletedItems) && deletedItems.length > 0) {
             for (const itemToDelete of deletedItems) {
-                const targetId = itemToDelete?.id;
+                const targetId = itemToDelete?.id ? parseInt(itemToDelete.id, 10) : null;
                 const kode = typeof itemToDelete === "string" ? itemToDelete : itemToDelete.kode_produk;
-                if (targetId) {
-                    await prisma.barang.deleteMany({ where: { id: targetId, no_penerimaan } });
+                if (targetId && !isNaN(targetId)) {
+                    await prisma.barang.deleteMany({ where: { id: targetId } });
                 } else if (kode) {
                     await prisma.barang.deleteMany({ where: { kode_produk: kode, no_penerimaan } });
                 }
@@ -560,39 +560,84 @@ const updateBatchPenerimaan = async (req, res) => {
             const qtyInt = parseInt(jumlah, 10);
             if (!nama_produk || isNaN(qtyInt) || qtyInt <= 0) continue;
             const tglExp = Number(is_no_expired) === 1 ? "2099-12-31" : normalizeTanggalDB(tanggal_expired);
+            const targetId = id ? parseInt(id, 10) : null;
 
-            if ((isExisting || id) && (id || kode_produk)) {
-                const dataUpdate = {
-                    nama_produk: nama_produk.trim(),
-                    kategori: kategori || "", sub_kategori: sub_kategori || "",
-                    satuan: satuan || "Pcs", jumlah: qtyInt,
-                    tanggal_expired: tglExp, tanggal_masuk: tglMasuk,
-                    lokasi: lokasi || "", penerima: penerima || "",
-                    is_no_expired: Number(is_no_expired) === 1 ? 1 : 0,
-                    updated_at: new Date()
-                };
-                if (id) {
-                    await prisma.barang.update({ where: { id }, data: dataUpdate });
+            const dataUpdate = {
+                nama_produk: nama_produk.trim(),
+                kategori: kategori || "",
+                sub_kategori: sub_kategori || "",
+                satuan: satuan || "Pcs",
+                jumlah: qtyInt,
+                tanggal_expired: tglExp,
+                tanggal_masuk: tglMasuk,
+                lokasi: lokasi || "",
+                penerima: penerima || "",
+                is_no_expired: Number(is_no_expired) === 1 ? 1 : 0,
+                updated_at: new Date()
+            };
+
+            let cleanKode = (kode_produk || "").trim().toUpperCase();
+            if (!cleanKode) {
+                const initials = nama_produk.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
+                cleanKode = `${initials || "BRG"}-001`;
+            }
+
+            if (targetId && !isNaN(targetId)) {
+                // Cek apakah ada record dengan ID tsb
+                const existingById = await prisma.barang.findUnique({ where: { id: targetId } });
+                if (existingById) {
+                    await prisma.barang.update({
+                        where: { id: targetId },
+                        data: { ...dataUpdate, kode_produk: cleanKode }
+                    });
                 } else {
-                    await prisma.barang.updateMany({ where: { no_penerimaan, kode_produk }, data: dataUpdate });
+                    // Jika id tidak ditemukan di DB, fallback coba cari by kode_produk & no_penerimaan
+                    const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
+                    if (existingByKode) {
+                        await prisma.barang.update({
+                            where: { id: existingByKode.id },
+                            data: dataUpdate
+                        });
+                    } else {
+                        await prisma.barang.create({
+                            data: {
+                                no_penerimaan,
+                                kode_produk: cleanKode,
+                                ...dataUpdate
+                            }
+                        });
+                    }
+                }
+            } else if (isExisting && cleanKode) {
+                // Update record yang ada berdasarkan no_penerimaan dan kode_produk
+                const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
+                if (existingByKode) {
+                    await prisma.barang.update({
+                        where: { id: existingByKode.id },
+                        data: dataUpdate
+                    });
+                } else {
+                    await prisma.barang.create({
+                        data: {
+                            no_penerimaan,
+                            kode_produk: cleanKode,
+                            ...dataUpdate
+                        }
+                    });
                 }
             } else {
-                let cleanKode = (kode_produk || "").trim().toUpperCase();
-                if (!cleanKode) {
-                    const initials = nama_produk.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 4);
-                    cleanKode = `${initials || "BRG"}-001`;
-                }
+                // Tambah record barang baru ke transaksi penerimaan ini
                 await prisma.barang.create({
                     data: {
-                        no_penerimaan, kode_produk: cleanKode, nama_produk: nama_produk.trim(),
-                        kategori: kategori || "", sub_kategori: sub_kategori || "",
-                        satuan: satuan || "Pcs", jumlah: qtyInt, tanggal_expired: tglExp,
-                        tanggal_masuk: tglMasuk, lokasi: lokasi || "", penerima: penerima || "",
-                        is_no_expired: Number(is_no_expired) === 1 ? 1 : 0
+                        no_penerimaan,
+                        kode_produk: cleanKode,
+                        ...dataUpdate
                     }
                 });
-                await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, cleanKode);
             }
+
+            // Selalu sinkronisasi master data
+            await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk.trim(), cleanKode);
         }
 
         res.json({ success: true, message: `Berhasil memperbarui transaksi penerimaan (No. Masuk: ${no_penerimaan}).` });

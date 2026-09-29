@@ -142,6 +142,20 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                     is_no_expired: Number(editData.is_no_expired) === 1 ? 1 : 0
                 };
 
+                // Prepopulate form dengan item edit pertama
+                setForm({
+                    kode_produk: editData.kode_produk || "",
+                    nama_produk: editData.nama_produk || "",
+                    kategori: editData.kategori || "",
+                    sub_kategori: editData.sub_kategori || "",
+                    satuan: editData.satuan || "",
+                    jumlah: parseInt(editData.jumlah, 10) || 1,
+                    tanggal_expired: editData.tanggal_expired || "",
+                    lokasi: editData.lokasi || ""
+                });
+                setIsNoExpired(Number(editData.is_no_expired) === 1);
+                setEditingCartId(fallbackItem.idDraft);
+
                 if (existingNoPenerimaan) {
                     axios.get(`${API_BARANG}/penerimaan/${encodeURIComponent(existingNoPenerimaan)}`)
                         .then(res => {
@@ -161,6 +175,19 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                                     is_no_expired: Number(r.is_no_expired) === 1 ? 1 : 0
                                 }));
                                 setCartItems(mapped);
+                                // Set edit id ke item pertama
+                                setEditingCartId(mapped[0].idDraft);
+                                setForm({
+                                    kode_produk: mapped[0].kode_produk || "",
+                                    nama_produk: mapped[0].nama_produk || "",
+                                    kategori: mapped[0].kategori || "",
+                                    sub_kategori: mapped[0].sub_kategori || "",
+                                    satuan: mapped[0].satuan || "",
+                                    jumlah: parseInt(mapped[0].jumlah, 10) || 1,
+                                    tanggal_expired: mapped[0].tanggal_expired || "",
+                                    lokasi: mapped[0].lokasi || ""
+                                });
+                                setIsNoExpired(Number(mapped[0].is_no_expired) === 1);
                             } else {
                                 setCartItems([fallbackItem]);
                             }
@@ -440,7 +467,48 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
             return;
         }
 
-        if (cartItems.length === 0) {
+        let itemsToSave = [...cartItems];
+
+        // Jika user sedang dalam mode edit item atau ada data di form yang belum di-klik "+ Update Item"
+        if (editingCartId) {
+            const qtyInt = parseInt(form.jumlah, 10) || 1;
+            const tglExp = isNoExpired ? get5YearsDate(tanggalMasukGlobal) : form.tanggal_expired;
+            itemsToSave = itemsToSave.map(item => {
+                if (item.idDraft === editingCartId) {
+                    return {
+                        ...item,
+                        kode_produk: form.kode_produk || item.kode_produk || "",
+                        nama_produk: (form.nama_produk || item.nama_produk || "").trim(),
+                        kategori: form.kategori !== undefined && form.kategori !== null ? form.kategori : (item.kategori || ""),
+                        sub_kategori: form.sub_kategori !== undefined && form.sub_kategori !== null ? form.sub_kategori : (item.sub_kategori || ""),
+                        satuan: form.satuan || item.satuan || "Pcs",
+                        jumlah: qtyInt,
+                        tanggal_expired: tglExp || item.tanggal_expired,
+                        lokasi: form.lokasi !== undefined && form.lokasi !== null ? form.lokasi : (item.lokasi || ""),
+                        is_no_expired: isNoExpired ? 1 : 0
+                    };
+                }
+                return item;
+            });
+        } else if (itemsToSave.length === 1 && form.nama_produk && (form.tanggal_expired || isNoExpired)) {
+            // Jika transaksi hanya ada 1 item dan user mengubah tanggal expired di form atas
+            const qtyInt = parseInt(form.jumlah, 10) || itemsToSave[0].jumlah || 1;
+            const tglExp = isNoExpired ? get5YearsDate(tanggalMasukGlobal) : (form.tanggal_expired || itemsToSave[0].tanggal_expired);
+            itemsToSave[0] = {
+                ...itemsToSave[0],
+                kode_produk: form.kode_produk || itemsToSave[0].kode_produk || "",
+                nama_produk: (form.nama_produk || itemsToSave[0].nama_produk || "").trim(),
+                kategori: form.kategori !== undefined && form.kategori !== null ? form.kategori : (itemsToSave[0].kategori || ""),
+                sub_kategori: form.sub_kategori !== undefined && form.sub_kategori !== null ? form.sub_kategori : (itemsToSave[0].sub_kategori || ""),
+                satuan: form.satuan || itemsToSave[0].satuan || "Pcs",
+                jumlah: qtyInt,
+                tanggal_expired: tglExp,
+                lokasi: form.lokasi !== undefined && form.lokasi !== null ? form.lokasi : (itemsToSave[0].lokasi || ""),
+                is_no_expired: isNoExpired ? 1 : 0
+            };
+        }
+
+        if (itemsToSave.length === 0) {
             alert("Keranjang penerimaan masih kosong! Silakan masukkan minimal 1 barang.");
             return;
         }
@@ -454,7 +522,7 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                     no_penerimaan: noPenerimaan,
                     penerima: penerimaGlobal,
                     tanggal_masuk: tanggalMasukGlobal,
-                    items: cartItems,
+                    items: itemsToSave,
                     deletedItems: deletedItems
                 };
 
@@ -466,7 +534,7 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                     no_penerimaan: noPenerimaan,
                     penerima: penerimaGlobal,
                     tanggal_masuk: tanggalMasukGlobal,
-                    items: cartItems
+                    items: itemsToSave
                 };
 
                 const res = await axios.post(`${API_BARANG}/batch`, payload);
@@ -591,6 +659,9 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                                             onChange={handleNamaSelect}
                                         >
                                             <option value="">-- Pilih Barang Terdaftar --</option>
+                                            {form.nama_produk && !isNamaLainnya && !namaBarangs.some(n => n.nama === form.nama_produk) && (
+                                                <option value={form.nama_produk}>📦 {form.nama_produk}</option>
+                                            )}
                                             {namaBarangs.map(n => (
                                                 <option key={n.id} value={n.nama}>
                                                     {n.kode ? `[${n.kode}] ${n.nama}` : n.nama}
