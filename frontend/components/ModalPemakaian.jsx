@@ -3,7 +3,9 @@ import { Modal, Button, Form, Row, Col, Table, Badge, Card } from "react-bootstr
 import axios from "axios";
 import { BoxSeam, CartPlusFill, Trash, PersonFill, PlusLg, CheckCircleFill, Receipt, Search, LockFill, PencilFill } from "react-bootstrap-icons";
 
-function ModalPemakaian({ show, handleClose, refreshData, editData }) {
+function ModalPemakaian({ show, handleClose, onHide, refreshData, onSuccess, editData }) {
+    const doClose = handleClose || onHide || (() => {});
+    const doRefresh = refreshData || onSuccess || (() => {});
     const API_NAMA_BARANG = "/api/nama-barang";
     const API_USERS = "/api/users";
     const API_PEMAKAIAN = "/api/pemakaian";
@@ -212,8 +214,8 @@ function ModalPemakaian({ show, handleClose, refreshData, editData }) {
 
             const res = await axios.post(API_PEMAKAIAN, payload);
             alert(res.data.message || `Pemakaian barang (${noOrder}) berhasil disimpan.`);
-            refreshData();
-            handleClose();
+            doRefresh();
+            doClose();
         } catch (err) {
             alert(err.response?.data?.message || "Gagal menyimpan pemakaian barang.");
         } finally {
@@ -222,7 +224,7 @@ function ModalPemakaian({ show, handleClose, refreshData, editData }) {
     };
 
     return (
-        <Modal show={show} onHide={handleClose} centered size="xl">
+        <Modal show={show} onHide={doClose} centered size="xl">
             
             {/* Header Modal Rapi & Ringkas */}
             <Modal.Header closeButton className="border-bottom py-2 px-3 bg-white">
@@ -511,7 +513,7 @@ function ModalPemakaian({ show, handleClose, refreshData, editData }) {
                 </Modal.Body>
 
                 <Modal.Footer className="border-top bg-white px-3 py-2 d-flex justify-content-between align-items-center">
-                    <Button variant="secondary" size="sm" onClick={handleClose} disabled={loading} className="px-3">
+                    <Button variant="secondary" size="sm" onClick={doClose} disabled={loading} className="px-3">
                         Batal
                     </Button>
 

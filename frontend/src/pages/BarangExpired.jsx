@@ -698,11 +698,16 @@ function BarangExpired({ mode = "only-expired" }) {
             {/* Modal Edit Barang */}
             <ModalBarang
                 show={showModal}
+                handleClose={() => {
+                    setShowModal(false);
+                    setEditData(null);
+                }}
                 onHide={() => {
                     setShowModal(false);
                     setEditData(null);
                 }}
                 editData={editData}
+                refreshData={loadData}
                 onSuccess={loadData}
             />
         </Container>

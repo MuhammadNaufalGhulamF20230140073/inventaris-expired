@@ -3,7 +3,9 @@ import { Modal, Button, Form, Row, Col, Badge, Card, Table } from "react-bootstr
 import { Receipt, BoxSeam, CartPlusFill, Trash, CheckCircleFill, PencilFill, XCircle } from "react-bootstrap-icons";
 import axios from "axios";
 
-function ModalBarang({ show, handleClose, editData, refreshData }) {
+function ModalBarang({ show, handleClose, onHide, editData, refreshData, onSuccess }) {
+    const doClose = handleClose || onHide || (() => {});
+    const doRefresh = refreshData || onSuccess || (() => {});
     const API_BARANG = "/api/barang";
     const API_NAMA_BARANG = "/api/nama-barang";
     const API_USERS = "/api/users";
@@ -524,8 +526,8 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                 alert(res.data.message || `Penerimaan barang (${noPenerimaan}) berhasil disimpan.`);
             }
 
-            refreshData();
-            handleClose();
+            doRefresh();
+            doClose();
         } catch (err) {
             console.error("Gagal menyimpan penerimaan barang:", err);
             alert(err.response?.data?.message || "Gagal menyimpan penerimaan barang.");
@@ -535,7 +537,7 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
     };
 
     return (
-        <Modal show={show} onHide={handleClose} centered size="xl">
+        <Modal show={show} onHide={doClose} centered size="xl">
             {/* Header Modal Rapi */}
             <Modal.Header closeButton className="border-bottom py-2 px-3 bg-white">
                 <div className="d-flex align-items-center justify-content-between w-100 me-2">
@@ -875,7 +877,7 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                 </Modal.Body>
 
                 <Modal.Footer className="border-top bg-white px-3 py-2 d-flex justify-content-between align-items-center">
-                    <Button variant="secondary" size="md" onClick={handleClose} disabled={loading} className="px-4 fw-semibold">
+                    <Button variant="secondary" size="md" onClick={doClose} disabled={loading} className="px-4 fw-semibold">
                         Batal
                     </Button>
 
