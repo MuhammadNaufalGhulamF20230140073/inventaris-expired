@@ -198,11 +198,51 @@ function DataBarang() {
         }
     };
 
+    // Helper: auto-upsert master data baru ke DB via API sebelum simpan barang
+    const autoSaveMasterData = async () => {
+        // STEP 1: Simpan Kategori dulu (sequential karena Sub Kategori butuh FK ke Kategori)
+        if (form.kategori.trim()) {
+            await axios.post("/api/kategori", { nama_kategori: form.kategori.trim() })
+                .catch(() => {}); // sudah ada = skip (unique constraint error diabaikan)
+        }
+
+        // STEP 2: Simpan Sub Kategori (hanya jika kategori juga ada)
+        if (form.sub_kategori.trim() && form.kategori.trim()) {
+            await axios.post("/api/kategori/sub", {
+                nama_kategori: form.kategori.trim(),
+                nama_sub_kategori: form.sub_kategori.trim()
+            }).catch(() => {}); // sudah ada = skip
+        }
+
+        // STEP 3: Satuan & Lokasi baru bisa parallel (independent dari kategori)
+        const parallelSaves = [];
+        if (isSatLainnya && form.satuan.trim()) {
+            parallelSaves.push(
+                axios.post("/api/satuan", { nama_satuan: form.satuan.trim() })
+                    .catch(() => {})
+            );
+        }
+        if (isLokLainnya && form.lokasi.trim()) {
+            parallelSaves.push(
+                axios.post("/api/lokasi", { nama_lokasi: form.lokasi.trim() })
+                    .catch(() => {})
+            );
+        }
+        if (parallelSaves.length > 0) {
+            await Promise.all(parallelSaves);
+        }
+    };
+
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.nama.trim()) return;
         try {
             setSaving(true);
+
+            // Auto-save master data baru (kategori/sub_kategori/satuan/lokasi) DULU
+            await autoSaveMasterData();
+
             const payload = {
                 kode: form.kode,
                 nama: form.nama,
@@ -229,6 +269,7 @@ function DataBarang() {
             setSaving(false);
         }
     };
+
 
     const handleDelete = async (id, namaBarang) => {
         if (!window.confirm(`Hapus data barang "${namaBarang}"? (Catatan: Riwayat penerimaan & pemakaian tetap tersimpan).`)) return;
