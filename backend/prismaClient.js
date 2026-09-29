@@ -7,36 +7,36 @@ let instance;
 const DEFAULT_DB_URL = "postgres://20fd37405ccc2b62c90b0a0ceced9d2278d43e13c0f46fff79118256fb256531:sk_0LFZA-Vk6bXmKSBoitheF@db.prisma.io:5432/postgres?sslmode=require";
 
 function getPrismaInstance() {
-    if (!instance) {
-        if (!PrismaClient) {
+    if (global.__prismaInstance) {
+        return global.__prismaInstance;
+    }
+
+    if (!PrismaClient) {
+        try {
+            PrismaClient = require('@prisma/client').PrismaClient;
+        } catch (e1) {
             try {
-                PrismaClient = require('@prisma/client').PrismaClient;
-            } catch (e1) {
-                try {
-                    PrismaClient = require('../node_modules/@prisma/client').PrismaClient;
-                } catch (e2) {
-                    PrismaClient = require('../../node_modules/@prisma/client').PrismaClient;
-                }
+                PrismaClient = require('../node_modules/@prisma/client').PrismaClient;
+            } catch (e2) {
+                PrismaClient = require('../../node_modules/@prisma/client').PrismaClient;
             }
-        }
-
-        const dbUrl = process.env.DATABASE_URL || DEFAULT_DB_URL;
-
-        if (process.env.NODE_ENV === 'production') {
-            instance = new PrismaClient({
-                datasources: { db: { url: dbUrl } },
-                log: ['error', 'warn'],
-            });
-        } else {
-            if (!global.__prismaInstance) {
-                global.__prismaInstance = new PrismaClient({
-                    datasources: { db: { url: dbUrl } },
-                });
-            }
-            instance = global.__prismaInstance;
         }
     }
-    return instance;
+
+    let dbUrl = process.env.DATABASE_URL || DEFAULT_DB_URL;
+
+    // Untuk serverless (Vercel), batasi connection_limit=1 & pool_timeout=10 jika belum diset
+    if (dbUrl && !dbUrl.includes("connection_limit")) {
+        const sep = dbUrl.includes("?") ? "&" : "?";
+        dbUrl = `${dbUrl}${sep}connection_limit=1&pool_timeout=10`;
+    }
+
+    global.__prismaInstance = new PrismaClient({
+        datasources: { db: { url: dbUrl } },
+        log: ['error', 'warn'],
+    });
+
+    return global.__prismaInstance;
 }
 
 // Proxy agar panggil prisma.users, prisma.barang dsb tetap sama tanpa mengubah controller

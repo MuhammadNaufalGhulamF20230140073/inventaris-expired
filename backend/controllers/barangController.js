@@ -583,22 +583,20 @@ const updateBatchPenerimaan = async (req, res) => {
             }
 
             if (targetId && !isNaN(targetId)) {
-                // Cek apakah ada record dengan ID tsb
-                const existingById = await prisma.barang.findUnique({ where: { id: targetId } });
-                if (existingById) {
-                    await prisma.barang.update({
-                        where: { id: targetId },
-                        data: { ...dataUpdate, kode_produk: cleanKode, no_penerimaan }
+                // Update by ID langsung
+                const updated = await prisma.barang.updateMany({
+                    where: { id: targetId },
+                    data: { ...dataUpdate, kode_produk: cleanKode, no_penerimaan }
+                });
+
+                if (updated.count === 0) {
+                    // Fallback jika ID tidak cocok: update berdasarkan no_penerimaan & kode_produk
+                    const fallbackUpdate = await prisma.barang.updateMany({
+                        where: { no_penerimaan, kode_produk: cleanKode },
+                        data: { ...dataUpdate, no_penerimaan }
                     });
-                } else {
-                    // Jika id tidak ditemukan di DB, fallback cari berdasarkan no_penerimaan & kode_produk
-                    const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
-                    if (existingByKode) {
-                        await prisma.barang.update({
-                            where: { id: existingByKode.id },
-                            data: { ...dataUpdate, no_penerimaan }
-                        });
-                    } else {
+
+                    if (fallbackUpdate.count === 0) {
                         await prisma.barang.create({
                             data: {
                                 no_penerimaan,
@@ -610,13 +608,12 @@ const updateBatchPenerimaan = async (req, res) => {
                 }
             } else if (cleanKode) {
                 // Update record yang ada berdasarkan no_penerimaan dan kode_produk
-                const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
-                if (existingByKode) {
-                    await prisma.barang.update({
-                        where: { id: existingByKode.id },
-                        data: { ...dataUpdate, no_penerimaan }
-                    });
-                } else {
+                const updated = await prisma.barang.updateMany({
+                    where: { no_penerimaan, kode_produk: cleanKode },
+                    data: { ...dataUpdate, no_penerimaan }
+                });
+
+                if (updated.count === 0) {
                     await prisma.barang.create({
                         data: {
                             no_penerimaan,
