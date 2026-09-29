@@ -446,63 +446,50 @@ const exportPenerimaanBarang = async (req, res) => {
     const validDari = bulanDari && /^\d{4}-\d{2}$/.test(bulanDari);
     const validSampai = bulanSampai && /^\d{4}-\d{2}$/.test(bulanSampai);
 
-    let sql = `
-        SELECT
-            no_penerimaan, kode_produk, nama_produk, kategori, sub_kategori,
-            satuan, jumlah, tanggal_masuk, tanggal_expired,
-            lokasi, penerima, is_no_expired, created_at
-        FROM barang
-        WHERE is_arsip = 0
-    `;
-    const params = [];
+    try {
+        let rows = await prisma.barang.findMany({
+            where: { is_arsip: 0 },
+            orderBy: [{ tanggal_masuk: "desc" }, { created_at: "desc" }]
+        });
 
-    if (kode_produk && kode_produk.trim()) {
-        sql += ` AND kode_produk = ?`;
-        params.push(kode_produk.trim());
-    }
+        if (kode_produk && kode_produk.trim()) {
+            rows = rows.filter(r => r.kode_produk === kode_produk.trim());
+        }
 
-    if (tgl_dari) {
-        sql += ` AND COALESCE(tanggal_masuk, DATE(created_at)) >= ?`;
-        params.push(tgl_dari);
-    }
+        if (tgl_dari) {
+            rows = rows.filter(r => (r.tanggal_masuk || (r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : "")) >= tgl_dari);
+        }
 
-    if (tgl_sampai) {
-        sql += ` AND COALESCE(tanggal_masuk, DATE(created_at)) <= ?`;
-        params.push(tgl_sampai);
-    }
+        if (tgl_sampai) {
+            rows = rows.filter(r => (r.tanggal_masuk || (r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : "")) <= tgl_sampai);
+        }
 
-    if (validDari && validSampai && !tgl_dari && !tgl_sampai) {
-        sql += ` AND DATE_FORMAT(COALESCE(tanggal_masuk, DATE(created_at)), '%Y-%m') >= ?`;
-        sql += ` AND DATE_FORMAT(COALESCE(tanggal_masuk, DATE(created_at)), '%Y-%m') <= ?`;
-        params.push(bulanDari, bulanSampai);
-    } else if (validDari && !tgl_dari && !tgl_sampai) {
-        sql += ` AND DATE_FORMAT(COALESCE(tanggal_masuk, DATE(created_at)), '%Y-%m') = ?`;
-        params.push(bulanDari);
-    }
+        if (validDari && validSampai && !tgl_dari && !tgl_sampai) {
+            rows = rows.filter(r => {
+                const ym = (r.tanggal_masuk || (r.created_at ? new Date(r.created_at).toISOString().slice(0, 7) : "")).slice(0, 7);
+                return ym >= bulanDari && ym <= bulanSampai;
+            });
+        } else if (validDari && !tgl_dari && !tgl_sampai) {
+            rows = rows.filter(r => {
+                const ym = (r.tanggal_masuk || (r.created_at ? new Date(r.created_at).toISOString().slice(0, 7) : "")).slice(0, 7);
+                return ym === bulanDari;
+            });
+        }
 
-    if (kategori && kategori !== "" && kategori !== "Semua") {
-        sql += ` AND LOWER(kategori) = LOWER(?)`;
-        params.push(kategori.trim());
-    }
+        if (kategori && kategori !== "" && kategori !== "Semua") {
+            rows = rows.filter(r => (r.kategori || "").toLowerCase() === kategori.trim().toLowerCase());
+        }
 
-    if (q && q.trim() !== "") {
-        const term = `%${q.trim().toLowerCase()}%`;
-        sql += ` AND (
-            LOWER(COALESCE(no_penerimaan, '')) LIKE ? OR
-            LOWER(COALESCE(kode_produk, '')) LIKE ? OR
-            LOWER(COALESCE(nama_produk, '')) LIKE ? OR
-            LOWER(COALESCE(penerima, '')) LIKE ? OR
-            LOWER(COALESCE(lokasi, '')) LIKE ? OR
-            LOWER(COALESCE(kategori, '')) LIKE ?
-        )`;
-        params.push(term, term, term, term, term, term);
-    }
-
-    sql += ` ORDER BY COALESCE(tanggal_masuk, DATE(created_at)) DESC, kategori ASC, nama_produk ASC`;
-
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
+        if (q && q.trim() !== "") {
+            const term = q.trim().toLowerCase();
+            rows = rows.filter(r =>
+                (r.no_penerimaan && r.no_penerimaan.toLowerCase().includes(term)) ||
+                (r.kode_produk && r.kode_produk.toLowerCase().includes(term)) ||
+                (r.nama_produk && r.nama_produk.toLowerCase().includes(term)) ||
+                (r.penerima && r.penerima.toLowerCase().includes(term)) ||
+                (r.lokasi && r.lokasi.toLowerCase().includes(term)) ||
+                (r.kategori && r.kategori.toLowerCase().includes(term))
+            );
         }
 
         getSystemSettings(async (settings) => {
@@ -902,80 +889,78 @@ const exportPenerimaanBarang = async (req, res) => {
                 res.status(500).json({ success: false, message: "Gagal membuat file Excel Penerimaan Barang." });
             }
         });
-    });
+    } catch (err) {
+        console.error("Gagal export penerimaan barang:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
 
 // ==========================
 // EXPORT: Semua Barang Aktif
 // ==========================
-const exportSemuaBarang = (req, res) => {
-    db.all(
-        "SELECT * FROM barang WHERE is_arsip=0 ORDER BY kategori ASC, tanggal_expired ASC",
-        [],
-        (err, rows) => {
-            if (err) {
-                return res.status(500).json({ success: false, message: err.message });
+const exportSemuaBarang = async (req, res) => {
+    try {
+        const rows = await prisma.barang.findMany({
+            where: { is_arsip: 0 },
+            orderBy: [{ kategori: "asc" }, { tanggal_expired: "asc" }]
+        });
+
+        getSystemSettings(async (settings) => {
+            try {
+                const tanggal = getTanggalHariIni();
+                const namaFile = `SemuaBarang_${tanggal}.xlsx`;
+                const filePath = await buatExcel(rows, namaFile, "Semua Barang Aktif", settings);
+
+                res.download(filePath, namaFile, (downloadErr) => {
+                    if (downloadErr) console.error("Gagal mengirim file:", downloadErr);
+                });
+            } catch (excelErr) {
+                console.error("Gagal membuat Excel:", excelErr);
+                res.status(500).json({ success: false, message: "Gagal membuat file Excel." });
             }
-
-            getSystemSettings(async (settings) => {
-                try {
-                    const tanggal = getTanggalHariIni();
-                    const namaFile = `SemuaBarang_${tanggal}.xlsx`;
-                    const filePath = await buatExcel(rows, namaFile, "Semua Barang Aktif", settings);
-
-                    res.download(filePath, namaFile, (downloadErr) => {
-                        if (downloadErr) {
-                            console.error("Gagal mengirim file:", downloadErr);
-                        }
-                    });
-                } catch (excelErr) {
-                    console.error("Gagal membuat Excel:", excelErr);
-                    res.status(500).json({ success: false, message: "Gagal membuat file Excel." });
-                }
-            });
-        }
-    );
+        });
+    } catch (err) {
+        console.error("Gagal export semua barang:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
 
 // ==========================
 // EXPORT: Barang Expired
 // ==========================
-const exportBarangExpired = (req, res) => {
-    const { tgl_dari_exp, tgl_sampai_exp, tgl_dari, tgl_sampai, kode_produk, kategori, status, q } = req.query;
-    const finalDari = tgl_dari_exp || tgl_dari;
-    const finalSampai = tgl_sampai_exp || tgl_sampai;
+const exportBarangExpired = async (req, res) => {
+    try {
+        const { tgl_dari_exp, tgl_sampai_exp, tgl_dari, tgl_sampai, kode_produk, kategori, status, q } = req.query;
+        const finalDari = tgl_dari_exp || tgl_dari;
+        const finalSampai = tgl_sampai_exp || tgl_sampai;
 
-    let sql = "SELECT * FROM barang WHERE is_arsip=0 AND is_no_expired=0";
-    const params = [];
+        let rows = await prisma.barang.findMany({
+            where: { is_arsip: 0, is_no_expired: 0 },
+            orderBy: [{ tanggal_expired: "asc" }, { kategori: "asc" }, { nama_produk: "asc" }]
+        });
 
-    if (kode_produk && kode_produk.trim() !== "") {
-        sql += " AND kode_produk = ?";
-        params.push(kode_produk.trim());
-    }
+        if (kode_produk && kode_produk.trim() !== "") {
+            rows = rows.filter(r => r.kode_produk === kode_produk.trim());
+        }
 
-    if (finalDari && finalDari.trim() !== "") {
-        sql += " AND DATE(tanggal_expired) >= ?";
-        params.push(finalDari.trim());
-    }
-    if (finalSampai && finalSampai.trim() !== "") {
-        sql += " AND DATE(tanggal_expired) <= ?";
-        params.push(finalSampai.trim());
-    }
-    if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
-        sql += " AND LOWER(kategori) = LOWER(?)";
-        params.push(kategori.trim());
-    }
-    if (q && q.trim() !== "") {
-        const term = `%${q.trim().toLowerCase()}%`;
-        sql += " AND (LOWER(kode_produk) LIKE ? OR LOWER(nama_produk) LIKE ? OR LOWER(lokasi) LIKE ? OR LOWER(kategori) LIKE ? OR LOWER(sub_kategori) LIKE ?)";
-        params.push(term, term, term, term, term);
-    }
-
-    sql += " ORDER BY tanggal_expired ASC, kategori ASC, nama_produk ASC";
-
-    db.all(sql, params, (err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
+        if (finalDari && finalDari.trim() !== "") {
+            rows = rows.filter(r => r.tanggal_expired >= finalDari.trim());
+        }
+        if (finalSampai && finalSampai.trim() !== "") {
+            rows = rows.filter(r => r.tanggal_expired <= finalSampai.trim());
+        }
+        if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
+            rows = rows.filter(r => (r.kategori || "").toLowerCase() === kategori.trim().toLowerCase());
+        }
+        if (q && q.trim() !== "") {
+            const term = q.trim().toLowerCase();
+            rows = rows.filter(r =>
+                (r.kode_produk && r.kode_produk.toLowerCase().includes(term)) ||
+                (r.nama_produk && r.nama_produk.toLowerCase().includes(term)) ||
+                (r.lokasi && r.lokasi.toLowerCase().includes(term)) ||
+                (r.kategori && r.kategori.toLowerCase().includes(term)) ||
+                (r.sub_kategori && r.sub_kategori.toLowerCase().includes(term))
+            );
         }
 
         getSystemSettings(async (settings) => {
@@ -1000,48 +985,47 @@ const exportBarangExpired = (req, res) => {
                 const filePath = await buatExcel(dataRows, namaFile, "Audit Barang Kedaluwarsa", settings);
 
                 res.download(filePath, namaFile, (downloadErr) => {
-                    if (downloadErr) {
-                        console.error("Gagal mengirim file audit:", downloadErr);
-                    }
+                    if (downloadErr) console.error("Gagal mengirim file audit:", downloadErr);
                 });
             } catch (excelErr) {
                 console.error("Gagal membuat Excel audit:", excelErr);
                 res.status(500).json({ success: false, message: "Gagal membuat file Excel." });
             }
         });
-    });
+    } catch (err) {
+        console.error("Gagal export barang expired:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
 
 // ==========================
 // EXPORT: Arsip Barang
 // ==========================
-const exportArsipBarang = (req, res) => {
-    db.all(
-        "SELECT * FROM barang WHERE is_arsip=1 ORDER BY kategori ASC, updated_at DESC",
-        [],
-        (err, rows) => {
-            if (err) {
-                return res.status(500).json({ success: false, message: err.message });
+const exportArsipBarang = async (req, res) => {
+    try {
+        const rows = await prisma.barang.findMany({
+            where: { is_arsip: 1 },
+            orderBy: [{ kategori: "asc" }, { updated_at: "desc" }]
+        });
+
+        getSystemSettings(async (settings) => {
+            try {
+                const tanggal = getTanggalHariIni();
+                const namaFile = `ArsipBarang_${tanggal}.xlsx`;
+                const filePath = await buatExcel(rows, namaFile, "Arsip Barang", settings);
+
+                res.download(filePath, namaFile, (downloadErr) => {
+                    if (downloadErr) console.error("Gagal mengirim file:", downloadErr);
+                });
+            } catch (excelErr) {
+                console.error("Gagal membuat Excel:", excelErr);
+                res.status(500).json({ success: false, message: "Gagal membuat file Excel." });
             }
-
-            getSystemSettings(async (settings) => {
-                try {
-                    const tanggal = getTanggalHariIni();
-                    const namaFile = `ArsipBarang_${tanggal}.xlsx`;
-                    const filePath = await buatExcel(rows, namaFile, "Arsip Barang", settings);
-
-                    res.download(filePath, namaFile, (downloadErr) => {
-                        if (downloadErr) {
-                            console.error("Gagal mengirim file:", downloadErr);
-                        }
-                    });
-                } catch (excelErr) {
-                    console.error("Gagal membuat Excel:", excelErr);
-                    res.status(500).json({ success: false, message: "Gagal membuat file Excel." });
-                }
-            });
-        }
-    );
+        });
+    } catch (err) {
+        console.error("Gagal export arsip barang:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
 
 
@@ -1051,69 +1035,74 @@ const exportArsipBarang = (req, res) => {
 // EXPORT: Opname Stok (Master Data Barang)
 // ==========================
 const exportOpnameStok = async (req, res) => {
-    const { kategori, sub_kategori, q } = req.query;
+    try {
+        const { kategori, sub_kategori, q } = req.query;
 
-    let sql = `
-        SELECT
-            nb.id,
-            nb.kode,
-            nb.nama,
-            nb.kategori,
-            nb.sub_kategori,
-            nb.satuan,
-            nb.lokasi,
-            CAST(
-                GREATEST(
-                    0,
-                    COALESCE((SELECT SUM(b.jumlah) FROM barang b WHERE b.nama_produk = nb.nama AND b.is_arsip = 0), 0)
-                    -
-                    COALESCE((SELECT SUM(p.jumlah) FROM pemakaian p WHERE p.nama_produk = nb.nama), 0)
-                ) AS UNSIGNED
-            ) AS total_stok
-        FROM nama_barang nb
-        WHERE 1=1
-    `;
-    const params = [];
+        const [masterRows, barangRows, pemakaianRows] = await Promise.all([
+            prisma.namaBarang.findMany({ orderBy: [{ kategori: "asc" }, { sub_kategori: "asc" }, { nama: "asc" }] }),
+            prisma.barang.findMany({ where: { is_arsip: 0 } }),
+            prisma.pemakaian.findMany()
+        ]);
 
-    if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
-        sql += ` AND LOWER(nb.kategori) = LOWER(?)`;
-        params.push(kategori.trim());
-    }
+        const sumMasuk = {};
+        barangRows.forEach(b => {
+            const k = (b.nama_produk || "").trim().toLowerCase();
+            sumMasuk[k] = (sumMasuk[k] || 0) + (Number(b.jumlah) || 0);
+        });
 
-    if (sub_kategori && sub_kategori.trim() !== "") {
-        sql += ` AND LOWER(nb.sub_kategori) = LOWER(?)`;
-        params.push(sub_kategori.trim());
-    }
+        const sumKeluar = {};
+        pemakaianRows.forEach(p => {
+            const k = (p.nama_produk || "").trim().toLowerCase();
+            sumKeluar[k] = (sumKeluar[k] || 0) + (Number(p.jumlah) || 0);
+        });
 
-    if (q && q.trim() !== "") {
-        const term = `%${q.trim()}%`;
-        sql += ` AND (LOWER(nb.nama) LIKE LOWER(?) OR LOWER(nb.kode) LIKE LOWER(?) OR LOWER(nb.lokasi) LIKE LOWER(?))`;
-        params.push(term, term, term);
-    }
+        let rows = masterRows.map(nb => {
+            const k = (nb.nama || "").trim().toLowerCase();
+            const masuk = sumMasuk[k] || 0;
+            const keluar = sumKeluar[k] || 0;
+            const total_stok = Math.max(0, masuk - keluar);
+            return {
+                id: nb.id,
+                kode: nb.kode,
+                nama: nb.nama,
+                kategori: nb.kategori,
+                sub_kategori: nb.sub_kategori,
+                satuan: nb.satuan,
+                lokasi: nb.lokasi,
+                total_stok
+            };
+        });
 
-    sql += ` ORDER BY LOWER(nb.kategori) ASC, LOWER(nb.sub_kategori) ASC, LOWER(nb.nama) ASC`;
-
-    db.all(sql, params, async (err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
+        if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
+            rows = rows.filter(r => (r.kategori || "").toLowerCase() === kategori.trim().toLowerCase());
         }
 
-        try {
-            const tanggal = getTanggalHariIni();
-            const namaFile = `OpnameStok_${tanggal}.xlsx`;
+        if (sub_kategori && sub_kategori.trim() !== "") {
+            rows = rows.filter(r => (r.sub_kategori || "").toLowerCase() === sub_kategori.trim().toLowerCase());
+        }
 
-            // Buat workbook Excel
-            const workbook = new ExcelJS.Workbook();
-            workbook.creator = "Sistem Inventaris - Gedung Agung";
-            workbook.created = new Date();
+        if (q && q.trim() !== "") {
+            const term = q.trim().toLowerCase();
+            rows = rows.filter(r =>
+                (r.nama && r.nama.toLowerCase().includes(term)) ||
+                (r.kode && r.kode.toLowerCase().includes(term)) ||
+                (r.lokasi && r.lokasi.toLowerCase().includes(term))
+            );
+        }
 
-            const sheet = workbook.addWorksheet("Opname Stok");
+        const tanggal = getTanggalHariIni();
+        const namaFile = `OpnameStok_${tanggal}.xlsx`;
 
-            const totalBarang = rows.length;
-            // Pastikan total_stok adalah angka (MySQL GREATEST bisa return Decimal)
-            rows.forEach(r => { r.total_stok = Number(r.total_stok) || 0; });
-            const stokKosong = rows.filter(r => r.total_stok === 0).length;
-            const stokAda = rows.filter(r => r.total_stok > 0).length;
+        // Buat workbook Excel
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "Sistem Inventaris - Gedung Agung";
+        workbook.created = new Date();
+
+        const sheet = workbook.addWorksheet("Opname Stok");
+
+        const totalBarang = rows.length;
+        const stokKosong = rows.filter(r => r.total_stok === 0).length;
+        const stokAda = rows.filter(r => r.total_stok > 0).length;
 
             // Row 1: Judul
             sheet.mergeCells("A1:K1");
@@ -1286,11 +1275,10 @@ const exportOpnameStok = async (req, res) => {
                     console.error("Gagal mengirim file opname:", downloadErr);
                 }
             });
-        } catch (excelErr) {
-            console.error("Gagal membuat Excel Opname:", excelErr);
-            res.status(500).json({ success: false, message: "Gagal membuat file Excel Opname Stok." });
-        }
-    });
+    } catch (err) {
+        console.error("Gagal export opname stok:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
 };
 
 const parseFlexDate = (rawVal) => {
@@ -1385,29 +1373,18 @@ const parseFlexDate = (rawVal) => {
 
 const downloadTemplateImportPenerimaan = async (req, res) => {
     try {
-        const fetchSystemMasterData = () => {
-            return new Promise((resolve) => {
-                db.all("SELECT id, kode, nama, kategori, sub_kategori, satuan, lokasi FROM nama_barang ORDER BY kategori ASC, nama ASC", [], (err1, rowsNama) => {
-                    db.all("SELECT nama_kategori FROM kategori ORDER BY nama_kategori ASC", [], (err2, rowsKat) => {
-                        db.all("SELECT nama_satuan FROM satuan ORDER BY nama_satuan ASC", [], (err3, rowsSat) => {
-                            db.all("SELECT nama_lokasi FROM lokasi ORDER BY nama_lokasi ASC", [], (err4, rowsLok) => {
-                                db.all("SELECT DISTINCT nama_sub_kategori FROM sub_kategori WHERE nama_sub_kategori IS NOT NULL AND nama_sub_kategori != '' ORDER BY nama_sub_kategori ASC", [], (err5, rowsSubKat) => {
-                                    resolve({
-                                        masterRows: rowsNama || [],
-                                        kategoriList: (rowsKat || []).map(r => r.nama_kategori).filter(Boolean),
-                                        satuanList: (rowsSat || []).map(r => r.nama_satuan).filter(Boolean),
-                                        lokasiList: (rowsLok || []).map(r => r.nama_lokasi).filter(Boolean),
-                                        subKategoriList: (rowsSubKat || []).map(r => r.nama_sub_kategori).filter(Boolean)
-                                    });
-                                });
-                            });
-                        });
-                    });
-                });
-            });
-        };
+        const [masterRows, rowsKat, rowsSat, rowsLok, rowsSubKat] = await Promise.all([
+            prisma.namaBarang.findMany({ orderBy: [{ kategori: "asc" }, { nama: "asc" }] }),
+            prisma.kategori.findMany({ orderBy: { nama_kategori: "asc" } }),
+            prisma.satuan.findMany({ orderBy: { nama_satuan: "asc" } }),
+            prisma.lokasi.findMany({ orderBy: { nama_lokasi: "asc" } }),
+            prisma.subKategori.findMany({ orderBy: { nama_sub_kategori: "asc" } })
+        ]);
 
-        const { masterRows, kategoriList, satuanList, lokasiList, subKategoriList } = await fetchSystemMasterData();
+        const kategoriList = rowsKat.map(r => r.nama_kategori).filter(Boolean);
+        const satuanList = rowsSat.map(r => r.nama_satuan).filter(Boolean);
+        const lokasiList = rowsLok.map(r => r.nama_lokasi).filter(Boolean);
+        const subKategoriList = rowsSubKat.map(r => r.nama_sub_kategori).filter(Boolean);
 
         const workbook = new ExcelJS.Workbook();
         workbook.creator = "Sistem Inventaris - Gedung Agung";
@@ -1576,21 +1553,25 @@ const downloadTemplateImportPenerimaan = async (req, res) => {
     }
 };
 
-const ensureMasterEntry = (tableName, columnName, value) => {
-    return new Promise((resolve) => {
-        if (!value || typeof value !== "string" || !value.trim()) {
-            return resolve();
+const ensureMasterEntry = async (tableName, columnName, value) => {
+    if (!value || typeof value !== "string" || !value.trim()) {
+        return;
+    }
+    const valClean = value.trim();
+    try {
+        if (tableName === "kategori") {
+            const exists = await prisma.kategori.findFirst({ where: { nama_kategori: { equals: valClean, mode: "insensitive" } } });
+            if (!exists) await prisma.kategori.create({ data: { nama_kategori: valClean } });
+        } else if (tableName === "lokasi") {
+            const exists = await prisma.lokasi.findFirst({ where: { nama_lokasi: { equals: valClean, mode: "insensitive" } } });
+            if (!exists) await prisma.lokasi.create({ data: { nama_lokasi: valClean } });
+        } else if (tableName === "satuan") {
+            const exists = await prisma.satuan.findFirst({ where: { nama_satuan: { equals: valClean, mode: "insensitive" } } });
+            if (!exists) await prisma.satuan.create({ data: { nama_satuan: valClean } });
         }
-        const valClean = value.trim();
-        db.get(`SELECT id FROM ${tableName} WHERE LOWER(${columnName}) = LOWER(?)`, [valClean], (err, row) => {
-            if (err || row) {
-                return resolve();
-            }
-            db.run(`INSERT INTO ${tableName} (${columnName}) VALUES (?)`, [valClean], () => {
-                resolve();
-            });
-        });
-    });
+    } catch (e) {
+        // Ignore duplicate errors
+    }
 };
 
 const importPenerimaanBarang = async (req, res) => {
@@ -1609,167 +1590,181 @@ const importPenerimaanBarang = async (req, res) => {
         const batchTanggalMasuk = normalizeTanggal(tanggal_masuk) || defaultDate;
         const batchPenerima = (penerima && String(penerima).trim() !== "") ? String(penerima).trim() : "Petugas Persediaan";
 
-        db.all("SELECT id, kode, nama, kategori, sub_kategori, satuan, lokasi FROM nama_barang", [], async (err, masterList) => {
-            if (err) return res.status(500).json({ success: false, message: "Gagal membaca database master." });
+        const masterList = await prisma.namaBarang.findMany();
+        const masterMap = new Map();
+        (masterList || []).forEach(m => {
+            if (m.nama) masterMap.set(m.nama.trim().toLowerCase(), m);
+        });
 
-            const masterMap = new Map();
-            (masterList || []).forEach(m => {
-                if (m.nama) masterMap.set(m.nama.trim().toLowerCase(), m);
-            });
+        let successCount = 0;
 
-            let successCount = 0;
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
 
-            for (let i = 0; i < rows.length; i++) {
-                const r = rows[i];
+            let rawKode = "";
+            let rawNama = "";
+            let rawJumlah = "";
+            let rawExp = "";
+            let rawSatuan = "";
+            let rawLokasi = "";
+            let rawKategori = "";
+            let rawSubKategori = "";
 
-                let rawKode = "";
-                let rawNama = "";
-                let rawJumlah = "";
-                let rawExp = "";
-                let rawSatuan = "";
-                let rawLokasi = "";
-                let rawKategori = "";
-                let rawSubKategori = "";
+            if (r && typeof r === "object") {
+                Object.keys(r).forEach(k => {
+                    const keyLower = k.toLowerCase().trim();
+                    const val = String(r[k] !== undefined && r[k] !== null ? r[k] : "").trim();
+                    if (!val) return;
 
-                if (r && typeof r === "object") {
-                    Object.keys(r).forEach(k => {
-                        const keyLower = k.toLowerCase().trim();
-                        const val = String(r[k] !== undefined && r[k] !== null ? r[k] : "").trim();
-                        if (!val) return;
-
-                        if (!rawKode && keyLower.includes("kode")) {
-                            rawKode = val;
-                        } else if (!rawNama && (keyLower.includes("nama") || keyLower.includes("produk") || keyLower.includes("barang"))) {
-                            rawNama = val;
-                        } else if (!rawJumlah && (keyLower.includes("jumlah") || keyLower.includes("banyak") || keyLower.includes("qty"))) {
-                            rawJumlah = val;
-                        } else if (!rawExp && (keyLower.includes("expired") || keyLower.includes("exp"))) {
-                            rawExp = val;
-                        } else if (!rawSatuan && (keyLower.includes("satuan") || keyLower.includes("unit"))) {
-                            rawSatuan = val;
-                        } else if (!rawLokasi && (keyLower.includes("lokasi") || keyLower.includes("gudang"))) {
-                            rawLokasi = val;
-                        } else if (!rawKategori && keyLower.includes("kategori") && !keyLower.includes("sub")) {
-                            rawKategori = val;
-                        } else if (!rawSubKategori && keyLower.includes("sub")) {
-                            rawSubKategori = val;
-                        }
-                    });
-                }
-
-                if (!rawNama) continue;
-
-                const namaProduk = String(rawNama).trim();
-                const namaUpper = namaProduk.toUpperCase();
-                if (
-                    namaUpper.includes("CONTOH") ||
-                    namaUpper.includes("HAPUS") ||
-                    namaUpper.includes("TIMPA") ||
-                    namaUpper.startsWith("NAMA BARANG") ||
-                    namaUpper.startsWith("NO.")
-                ) {
-                    continue; // Skip visual example row automatically
-                }
-
-                const matchedMaster = masterMap.get(namaProduk.toLowerCase()) || null;
-                const jumlah = parseInt(rawJumlah, 10) || 1;
-
-                // Robust date parsing
-                const dateParseResult = parseFlexDate(rawExp);
-                const isNoExpired = dateParseResult.isNoExpired;
-                const tanggalExpired = dateParseResult.dateStr;
-
-                let derivedInitials = namaProduk
-                    .split(/\s+/)
-                    .map(w => w[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 4);
-                let fallbackKode = `${derivedInitials || "BRG"}-001`;
-                let kodeProduk = (rawKode || (matchedMaster ? matchedMaster.kode : "") || fallbackKode).trim().toUpperCase();
-                let kategori = (rawKategori || (matchedMaster ? matchedMaster.kategori : "") || "Umum").trim();
-                let subKategori = (rawSubKategori || (matchedMaster ? matchedMaster.sub_kategori : "") || "").trim();
-                let satuan = (rawSatuan || (matchedMaster ? matchedMaster.satuan : "") || "Pcs").trim();
-                let lokasi = (rawLokasi || (matchedMaster ? matchedMaster.lokasi : "") || "Gudang Utama").trim();
-
-                // Auto-register custom typed Kategori, Lokasi, Satuan to master tables
-                await Promise.all([
-                    ensureMasterEntry("kategori", "nama_kategori", kategori),
-                    ensureMasterEntry("lokasi", "nama_lokasi", lokasi),
-                    ensureMasterEntry("satuan", "nama_satuan", satuan)
-                ]);
-
-                // Daftarkan Sub Kategori ke tabel sub_kategori (butuh kategori_id)
-                if (subKategori && subKategori.trim() !== "") {
-                    await new Promise(resolve => {
-                        db.get("SELECT id FROM kategori WHERE LOWER(nama_kategori) = LOWER(?)", [kategori.trim()], (err, katRow) => {
-                            if (katRow) {
-                                db.run(
-                                    "INSERT OR IGNORE INTO sub_kategori (kategori_id, nama_sub_kategori) VALUES (?, ?)",
-                                    [katRow.id, subKategori.trim()],
-                                    () => resolve()
-                                );
-                            } else {
-                                resolve();
-                            }
-                        });
-                    });
-                }
-
-                if (matchedMaster) {
-                    let updated = false;
-                    if (subKategori && matchedMaster.sub_kategori !== subKategori) {
-                        matchedMaster.sub_kategori = subKategori;
-                        updated = true;
+                    if (!rawKode && keyLower.includes("kode")) {
+                        rawKode = val;
+                    } else if (!rawNama && (keyLower.includes("nama") || keyLower.includes("produk") || keyLower.includes("barang"))) {
+                        rawNama = val;
+                    } else if (!rawJumlah && (keyLower.includes("jumlah") || keyLower.includes("banyak") || keyLower.includes("qty"))) {
+                        rawJumlah = val;
+                    } else if (!rawExp && (keyLower.includes("expired") || keyLower.includes("exp"))) {
+                        rawExp = val;
+                    } else if (!rawSatuan && (keyLower.includes("satuan") || keyLower.includes("unit"))) {
+                        rawSatuan = val;
+                    } else if (!rawLokasi && (keyLower.includes("lokasi") || keyLower.includes("gudang"))) {
+                        rawLokasi = val;
+                    } else if (!rawKategori && keyLower.includes("kategori") && !keyLower.includes("sub")) {
+                        rawKategori = val;
+                    } else if (!rawSubKategori && keyLower.includes("sub")) {
+                        rawSubKategori = val;
                     }
-                    if (kategori && matchedMaster.kategori !== kategori) {
-                        matchedMaster.kategori = kategori;
-                        updated = true;
-                    }
-                    if (satuan && matchedMaster.satuan !== satuan) {
-                        matchedMaster.satuan = satuan;
-                        updated = true;
-                    }
-                    if (lokasi && matchedMaster.lokasi !== lokasi) {
-                        matchedMaster.lokasi = lokasi;
-                        updated = true;
-                    }
-                    if (updated) {
-                        db.run(
-                            "UPDATE nama_barang SET kategori = ?, sub_kategori = ?, satuan = ?, lokasi = ? WHERE id = ?",
-                            [matchedMaster.kategori, matchedMaster.sub_kategori, matchedMaster.satuan, matchedMaster.lokasi, matchedMaster.id]
-                        );
-                    }
-                } else {
-                    await new Promise(resolve => {
-                        db.run(
-                            "INSERT INTO nama_barang (kode, nama, kategori, sub_kategori, satuan, lokasi) VALUES (?, ?, ?, ?, ?, ?)",
-                            [kodeProduk, namaProduk, kategori, subKategori, satuan, lokasi],
-                            (err, resIns) => resolve()
-                        );
-                    });
-                    masterMap.set(namaProduk.toLowerCase(), { kode: kodeProduk, nama: namaProduk, kategori, sub_kategori: subKategori, satuan, lokasi });
-                }
-
-                await new Promise(resolve => {
-                    db.run(
-                        `INSERT INTO barang (no_penerimaan, kode_produk, nama_produk, kategori, sub_kategori, satuan, jumlah, tanggal_masuk, tanggal_expired, lokasi, penerima, is_no_expired, is_arsip, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-                        [batchNoPenerimaan, kodeProduk, namaProduk, kategori, subKategori, satuan, jumlah, batchTanggalMasuk, tanggalExpired, lokasi, batchPenerima, isNoExpired],
-                        () => {
-                            successCount++;
-                            resolve();
-                        }
-                    );
                 });
             }
 
-            return res.json({
-                success: true,
-                message: `Berhasil mengimpor Transaksi Penerimaan ${batchNoPenerimaan} (${successCount} jenis barang)!`,
-                no_penerimaan: batchNoPenerimaan,
-                importedCount: successCount
+            if (!rawNama) continue;
+
+            const namaProduk = String(rawNama).trim();
+            const namaUpper = namaProduk.toUpperCase();
+            if (
+                namaUpper.includes("CONTOH") ||
+                namaUpper.includes("HAPUS") ||
+                namaUpper.includes("TIMPA") ||
+                namaUpper.startsWith("NAMA BARANG") ||
+                namaUpper.startsWith("NO.")
+            ) {
+                continue; // Skip visual example row automatically
+            }
+
+            const matchedMaster = masterMap.get(namaProduk.toLowerCase()) || null;
+            const jumlah = parseInt(rawJumlah, 10) || 1;
+
+            // Robust date parsing
+            const dateParseResult = parseFlexDate(rawExp);
+            const isNoExpired = dateParseResult.isNoExpired;
+            const tanggalExpired = dateParseResult.dateStr;
+
+            let derivedInitials = namaProduk
+                .split(/\s+/)
+                .map(w => w[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 4);
+            let fallbackKode = `${derivedInitials || "BRG"}-001`;
+            let kodeProduk = (rawKode || (matchedMaster ? matchedMaster.kode : "") || fallbackKode).trim().toUpperCase();
+            let kategori = (rawKategori || (matchedMaster ? matchedMaster.kategori : "") || "Umum").trim();
+            let subKategori = (rawSubKategori || (matchedMaster ? matchedMaster.sub_kategori : "") || "").trim();
+            let satuan = (rawSatuan || (matchedMaster ? matchedMaster.satuan : "") || "Pcs").trim();
+            let lokasi = (rawLokasi || (matchedMaster ? matchedMaster.lokasi : "") || "Gudang Utama").trim();
+
+            // Auto-register custom typed Kategori, Lokasi, Satuan to master tables
+            await Promise.all([
+                ensureMasterEntry("kategori", "nama_kategori", kategori),
+                ensureMasterEntry("lokasi", "nama_lokasi", lokasi),
+                ensureMasterEntry("satuan", "nama_satuan", satuan)
+            ]);
+
+            // Daftarkan Sub Kategori ke tabel sub_kategori (butuh kategori_id)
+            if (subKategori && subKategori.trim() !== "") {
+                const katRow = await prisma.kategori.findFirst({ where: { nama_kategori: { equals: kategori.trim(), mode: "insensitive" } } });
+                if (katRow) {
+                    const subExists = await prisma.subKategori.findFirst({
+                        where: { kategori_id: katRow.id, nama_sub_kategori: { equals: subKategori.trim(), mode: "insensitive" } }
+                    });
+                    if (!subExists) {
+                        await prisma.subKategori.create({
+                            data: { kategori_id: katRow.id, nama_sub_kategori: subKategori.trim() }
+                        });
+                    }
+                }
+            }
+
+            if (matchedMaster) {
+                let updated = false;
+                const updateData = {};
+                if (subKategori && matchedMaster.sub_kategori !== subKategori) {
+                    matchedMaster.sub_kategori = subKategori;
+                    updateData.sub_kategori = subKategori;
+                    updated = true;
+                }
+                if (kategori && matchedMaster.kategori !== kategori) {
+                    matchedMaster.kategori = kategori;
+                    updateData.kategori = kategori;
+                    updated = true;
+                }
+                if (satuan && matchedMaster.satuan !== satuan) {
+                    matchedMaster.satuan = satuan;
+                    updateData.satuan = satuan;
+                    updated = true;
+                }
+                if (lokasi && matchedMaster.lokasi !== lokasi) {
+                    matchedMaster.lokasi = lokasi;
+                    updateData.lokasi = lokasi;
+                    updated = true;
+                }
+                if (updated) {
+                    await prisma.namaBarang.update({
+                        where: { id: matchedMaster.id },
+                        data: updateData
+                    });
+                }
+            } else {
+                try {
+                    await prisma.namaBarang.create({
+                        data: {
+                            kode: kodeProduk,
+                            nama: namaProduk,
+                            kategori,
+                            sub_kategori: subKategori,
+                            satuan,
+                            lokasi
+                        }
+                    });
+                    masterMap.set(namaProduk.toLowerCase(), { kode: kodeProduk, nama: namaProduk, kategori, sub_kategori: subKategori, satuan, lokasi });
+                } catch (e) {
+                    // Ignore duplicate nama_barang
+                }
+            }
+
+            await prisma.barang.create({
+                data: {
+                    no_penerimaan: batchNoPenerimaan,
+                    kode_produk: kodeProduk,
+                    nama_produk: namaProduk,
+                    kategori,
+                    sub_kategori: subKategori,
+                    satuan,
+                    jumlah,
+                    tanggal_masuk: batchTanggalMasuk,
+                    tanggal_expired: tanggalExpired,
+                    lokasi,
+                    penerima: batchPenerima,
+                    is_no_expired: isNoExpired,
+                    is_arsip: 0
+                }
             });
+            successCount++;
+        }
+
+        return res.json({
+            success: true,
+            message: `Berhasil mengimpor Transaksi Penerimaan ${batchNoPenerimaan} (${successCount} jenis barang)!`,
+            no_penerimaan: batchNoPenerimaan,
+            importedCount: successCount
         });
     } catch (err) {
         console.error("Gagal mengimpor penerimaan barang:", err);
@@ -1820,52 +1815,41 @@ const exportKartuStok = async (req, res) => {
         const saldoAwalByKode = {};
         let totalSaldoAwal = 0;
 
+        const allBarang = await prisma.barang.findMany({
+            where: { is_arsip: 0 }
+        });
+        const allPemakaian = await prisma.pemakaian.findMany();
+
         // 1. Saldo awal per kode_produk
         if (tgl_dari && tgl_dari.trim() !== "") {
-            let sqlPrevInbound = `
-                SELECT kode_produk, COALESCE(SUM(jumlah), 0) AS total_in 
-                FROM barang 
-                WHERE is_arsip = 0 AND COALESCE(tanggal_masuk, DATE(created_at)) < ?
-            `;
-            const paramsPrevIn = [tgl_dari.trim()];
+            const cutOffDate = tgl_dari.trim();
 
-            let sqlPrevOutbound = `
-                SELECT kode_produk, COALESCE(SUM(jumlah), 0) AS total_out 
-                FROM pemakaian 
-                WHERE tanggal_pemakaian < ?
-            `;
-            const paramsPrevOut = [tgl_dari.trim()];
-
-            if (kode_produk && kode_produk.trim() !== "") {
-                sqlPrevInbound += ` AND kode_produk = ?`;
-                paramsPrevIn.push(kode_produk.trim());
-
-                sqlPrevOutbound += ` AND kode_produk = ?`;
-                paramsPrevOut.push(kode_produk.trim());
-            }
-
-            if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
-                sqlPrevInbound += ` AND LOWER(kategori) = LOWER(?)`;
-                paramsPrevIn.push(kategori.trim());
-
-                sqlPrevOutbound += ` AND LOWER(kategori) = LOWER(?)`;
-                paramsPrevOut.push(kategori.trim());
-            }
-
-            sqlPrevInbound += ` GROUP BY kode_produk`;
-            sqlPrevOutbound += ` GROUP BY kode_produk`;
-
-            const prevInRows = await new Promise(resolve => db.all(sqlPrevInbound, paramsPrevIn, (e, r) => resolve(r || [])));
-            const prevOutRows = await new Promise(resolve => db.all(sqlPrevOutbound, paramsPrevOut, (e, r) => resolve(r || [])));
-
-            prevInRows.forEach(r => {
-                const k = r.kode_produk || 'GENERAL';
-                saldoAwalByKode[k] = (saldoAwalByKode[k] || 0) + (Number(r.total_in) || 0);
+            allBarang.forEach(b => {
+                const bDate = b.tanggal_masuk
+                    ? b.tanggal_masuk.slice(0, 10)
+                    : (b.created_at ? new Date(b.created_at).toISOString().slice(0, 10) : "");
+                
+                if (bDate && bDate < cutOffDate) {
+                    if (kode_produk && kode_produk.trim() !== "" && b.kode_produk !== kode_produk.trim()) return;
+                    if (kategori && kategori.trim() !== "" && kategori !== "Semua" && (b.kategori || "").toLowerCase() !== kategori.trim().toLowerCase()) return;
+                    
+                    const k = b.kode_produk || "GENERAL";
+                    saldoAwalByKode[k] = (saldoAwalByKode[k] || 0) + (Number(b.jumlah) || 0);
+                }
             });
 
-            prevOutRows.forEach(r => {
-                const k = r.kode_produk || 'GENERAL';
-                saldoAwalByKode[k] = (saldoAwalByKode[k] || 0) - (Number(r.total_out) || 0);
+            allPemakaian.forEach(p => {
+                const pDate = p.tanggal_pemakaian
+                    ? p.tanggal_pemakaian.slice(0, 10)
+                    : (p.created_at ? new Date(p.created_at).toISOString().slice(0, 10) : "");
+                
+                if (pDate && pDate < cutOffDate) {
+                    if (kode_produk && kode_produk.trim() !== "" && p.kode_produk !== kode_produk.trim()) return;
+                    if (kategori && kategori.trim() !== "" && kategori !== "Semua" && (p.kategori || "").toLowerCase() !== kategori.trim().toLowerCase()) return;
+                    
+                    const k = p.kode_produk || "GENERAL";
+                    saldoAwalByKode[k] = (saldoAwalByKode[k] || 0) - (Number(p.jumlah) || 0);
+                }
             });
 
             Object.keys(saldoAwalByKode).forEach(k => {
@@ -1875,277 +1859,285 @@ const exportKartuStok = async (req, res) => {
         }
 
         // 2. Data mutasi
-        let sqlInbound = `
-            SELECT 
-                id, 'MASUK' AS jenis, no_penerimaan AS no_ref, kode_produk, nama_produk, 
-                kategori, sub_kategori, satuan, jumlah AS qty_masuk, 0 AS qty_keluar, 
-                COALESCE(tanggal_masuk, DATE(created_at)) AS tanggal, lokasi, 
-                COALESCE(penerima, 'Penerimaan Barang') AS keterangan, created_at
-            FROM barang WHERE is_arsip = 0
-        `;
+        const inboundList = [];
+        allBarang.forEach(b => {
+            const bDate = b.tanggal_masuk
+                ? b.tanggal_masuk.slice(0, 10)
+                : (b.created_at ? new Date(b.created_at).toISOString().slice(0, 10) : "");
 
-        let sqlOutbound = `
-            SELECT 
-                id, 'KELUAR' AS jenis, COALESCE(no_order, '-') AS no_ref, kode_produk, nama_produk, 
-                '' AS kategori, '' AS sub_kategori, 'Pcs' AS satuan, 0 AS qty_masuk, 
-                jumlah AS qty_keluar, tanggal_pemakaian AS tanggal, '' AS lokasi, 
-                CONCAT(COALESCE(penerima, ''), ' - ', COALESCE(keterangan, '')) AS keterangan, created_at
-            FROM pemakaian WHERE 1=1
-        `;
+            if (kode_produk && kode_produk.trim() !== "" && b.kode_produk !== kode_produk.trim()) return;
+            if (kategori && kategori.trim() !== "" && kategori !== "Semua" && (b.kategori || "").toLowerCase() !== kategori.trim().toLowerCase()) return;
+            if (tgl_dari && tgl_dari.trim() !== "" && bDate < tgl_dari.trim()) return;
+            if (tgl_sampai && tgl_sampai.trim() !== "" && bDate > tgl_sampai.trim()) return;
 
-        const paramsInbound = [];
-        const paramsOutbound = [];
-
-        if (kode_produk && kode_produk.trim() !== "") {
-            sqlInbound += ` AND kode_produk = ?`;
-            paramsInbound.push(kode_produk.trim());
-            sqlOutbound += ` AND kode_produk = ?`;
-            paramsOutbound.push(kode_produk.trim());
-        }
-
-        if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
-            sqlInbound += ` AND LOWER(kategori) = LOWER(?)`;
-            paramsInbound.push(kategori.trim());
-            sqlOutbound += ` AND LOWER(kategori) = LOWER(?)`;
-            paramsOutbound.push(kategori.trim());
-        }
-
-        if (q && q.trim() !== "") {
-            const term = `%${q.trim()}%`;
-            sqlInbound += ` AND (kode_produk LIKE ? OR nama_produk LIKE ? OR lokasi LIKE ?)`;
-            paramsInbound.push(term, term, term);
-            sqlOutbound += ` AND (kode_produk LIKE ? OR nama_produk LIKE ? OR lokasi_pemakaian LIKE ?)`;
-            paramsOutbound.push(term, term, term);
-        }
-
-        if (tgl_dari && tgl_dari.trim() !== "") {
-            sqlInbound += ` AND COALESCE(tanggal_masuk, DATE(created_at)) >= ?`;
-            paramsInbound.push(tgl_dari.trim());
-            sqlOutbound += ` AND tanggal_pemakaian >= ?`;
-            paramsOutbound.push(tgl_dari.trim());
-        }
-
-        if (tgl_sampai && tgl_sampai.trim() !== "") {
-            sqlInbound += ` AND COALESCE(tanggal_masuk, DATE(created_at)) <= ?`;
-            paramsInbound.push(tgl_sampai.trim());
-            sqlOutbound += ` AND tanggal_pemakaian <= ?`;
-            paramsOutbound.push(tgl_sampai.trim());
-        }
-
-        const fullSql = `
-            SELECT * FROM (
-                ${sqlInbound}
-                UNION ALL
-                ${sqlOutbound}
-            ) AS mutasi
-            ORDER BY tanggal ASC, created_at ASC, id ASC
-        `;
-
-        const allParams = [...paramsInbound, ...paramsOutbound];
-
-        db.all(fullSql, allParams, (err, rows) => {
-            if (err) {
-                return res.status(500).json({ success: false, message: err.message });
+            if (q && q.trim() !== "") {
+                const term = q.trim().toLowerCase();
+                const matchKode = (b.kode_produk || "").toLowerCase().includes(term);
+                const matchNama = (b.nama_produk || "").toLowerCase().includes(term);
+                const matchLokasi = (b.lokasi || "").toLowerCase().includes(term);
+                if (!matchKode && !matchNama && !matchLokasi) return;
             }
 
-            getSystemSettings(async (settings) => {
-                try {
-                    const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "Sistem Inventaris - Gedung Agung";
-                    workbook.created = new Date();
+            inboundList.push({
+                id: b.id,
+                jenis: "MASUK",
+                no_ref: b.no_penerimaan,
+                kode_produk: b.kode_produk,
+                nama_produk: b.nama_produk,
+                kategori: b.kategori,
+                sub_kategori: b.sub_kategori,
+                satuan: b.satuan,
+                qty_masuk: Number(b.jumlah) || 0,
+                qty_keluar: 0,
+                tanggal: bDate,
+                lokasi: b.lokasi,
+                keterangan: b.penerima || "Penerimaan Barang",
+                created_at: b.created_at
+            });
+        });
 
-                    const sheet = workbook.addWorksheet("Kartu Stok");
+        const outboundList = [];
+        allPemakaian.forEach(p => {
+            const pDate = p.tanggal_pemakaian
+                ? p.tanggal_pemakaian.slice(0, 10)
+                : (p.created_at ? new Date(p.created_at).toISOString().slice(0, 10) : "");
 
-                    // 1. Title Row (A1:K1)
-                    sheet.mergeCells("A1:K1");
-                    const titleRow = sheet.getRow(1);
-                    const instansiText = (settings.nama_instansi && settings.sub_instansi)
-                        ? `${settings.nama_instansi.toUpperCase()} - ${settings.sub_instansi.toUpperCase()}`
-                        : "ISTANA KEPRESIDENAN YOGYAKARTA";
-                    titleRow.getCell(1).value = `LAPORAN KARTU STOK & MUTASI BARANG - ${instansiText}`;
-                    titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
-                    titleRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-                    titleRow.height = 30;
+            if (kode_produk && kode_produk.trim() !== "" && p.kode_produk !== kode_produk.trim()) return;
+            if (kategori && kategori.trim() !== "" && kategori !== "Semua" && (p.kategori || "").toLowerCase() !== kategori.trim().toLowerCase()) return;
+            if (tgl_dari && tgl_dari.trim() !== "" && pDate < tgl_dari.trim()) return;
+            if (tgl_sampai && tgl_sampai.trim() !== "" && pDate > tgl_sampai.trim()) return;
 
-                    // 2. Sub-title info (A2:K2)
-                    sheet.mergeCells("A2:K2");
-                    const infoRow = sheet.getRow(2);
-                    const prodInfo = kode_produk ? `Produk Kode: ${kode_produk}` : "Semua Produk";
-                    const periodInfo = (tgl_dari || tgl_sampai) ? `Periode: ${tgl_dari || 'Awal'} s.d. ${tgl_sampai || 'Hari Ini'}` : "Semua Periode";
-                    infoRow.getCell(1).value = `${prodInfo}   |   ${periodInfo}   |   Tanggal Unduh: ${getTanggalHariIni()}`;
-                    infoRow.getCell(1).font = { italic: true, size: 10, color: { argb: "FF475569" } };
-                    infoRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-                    infoRow.height = 20;
+            if (q && q.trim() !== "") {
+                const term = q.trim().toLowerCase();
+                const matchKode = (p.kode_produk || "").toLowerCase().includes(term);
+                const matchNama = (p.nama_produk || "").toLowerCase().includes(term);
+                const matchLokasi = (p.lokasi_pemakaian || "").toLowerCase().includes(term);
+                if (!matchKode && !matchNama && !matchLokasi) return;
+            }
 
-                    // 3. Summary row (A3:K3)
-                    const runningBalances = { ...saldoAwalByKode };
-                    let totalMasuk = 0;
-                    let totalKeluar = 0;
+            outboundList.push({
+                id: p.id,
+                jenis: "KELUAR",
+                no_ref: p.no_order || "-",
+                kode_produk: p.kode_produk,
+                nama_produk: p.nama_produk,
+                kategori: p.kategori || "",
+                sub_kategori: p.sub_kategori || "",
+                satuan: p.satuan || "Pcs",
+                qty_masuk: 0,
+                qty_keluar: Number(p.jumlah) || 0,
+                tanggal: pDate,
+                lokasi: p.lokasi_pemakaian || "",
+                keterangan: (p.penerima ? p.penerima : "") + (p.keterangan ? " - " + p.keterangan : ""),
+                created_at: p.created_at
+            });
+        });
 
-                    (rows || []).forEach(r => {
-                        totalMasuk += Number(r.qty_masuk) || 0;
-                        totalKeluar += Number(r.qty_keluar) || 0;
-                    });
-                    const totalSaldoAkhir = totalSaldoAwal + totalMasuk - totalKeluar;
+        const rows = [...inboundList, ...outboundList].sort((a, b) => {
+            if (a.tanggal !== b.tanggal) return (a.tanggal || "").localeCompare(b.tanggal || "");
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            if (dateA !== dateB) return dateA - dateB;
+            return a.id - b.id;
+        });
 
-                    sheet.mergeCells("A3:K3");
-                    const sumRow = sheet.getRow(3);
-                    const summaryTxt = `[ Saldo Awal: ${totalSaldoAwal} ]   -   [ Total Masuk (+): ${totalMasuk} ]   -   [ Total Keluar (-): ${totalKeluar} ]   -   [ Saldo Sisa Akhir: ${Math.max(0, totalSaldoAkhir)} ]`;
-                    sumRow.getCell(1).value = summaryTxt;
-                    sumRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF1E3A8A" } };
-                    sumRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-                    sumRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
-                    sumRow.height = 25;
+        getSystemSettings(async (settings) => {
+            try {
+                const workbook = new ExcelJS.Workbook();
+                workbook.creator = "Sistem Inventaris - Gedung Agung";
+                workbook.created = new Date();
 
-                    sheet.getRow(4).height = 15; // Row pembatas
+                const sheet = workbook.addWorksheet("Kartu Stok");
 
-                    // 4. Header Tabel (Row 5)
-                    const headerCols = [
-                        { name: "No.", width: 6 },
-                        { name: "Tanggal", width: 14 },
-                        { name: "Jenis Mutasi", width: 14 },
-                        { name: "No. Referensi", width: 20 },
-                        { name: "Kode Produk", width: 16 },
-                        { name: "Nama Produk", width: 30 },
-                        { name: "Masuk (+)", width: 14 },
-                        { name: "Keluar (-)", width: 14 },
-                        { name: "Saldo Sisa", width: 14 },
-                        { name: "Lokasi", width: 20 },
-                        { name: "Keterangan", width: 30 }
-                    ];
+                // 1. Title Row (A1:K1)
+                sheet.mergeCells("A1:K1");
+                const titleRow = sheet.getRow(1);
+                const instansiText = (settings.nama_instansi && settings.sub_instansi)
+                    ? `${settings.nama_instansi.toUpperCase()} - ${settings.sub_instansi.toUpperCase()}`
+                    : "ISTANA KEPRESIDENAN YOGYAKARTA";
+                titleRow.getCell(1).value = `LAPORAN KARTU STOK & MUTASI BARANG - ${instansiText}`;
+                titleRow.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
+                titleRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+                titleRow.height = 30;
 
-                    const headerRow = sheet.getRow(5);
-                    headerRow.height = 26;
-                    headerCols.forEach((col, idx) => {
-                        const cell = headerRow.getCell(idx + 1);
-                        cell.value = col.name;
-                        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } }; // Dark slate header
-                        cell.alignment = { vertical: "middle", horizontal: "center" };
+                // 2. Sub-title info (A2:K2)
+                sheet.mergeCells("A2:K2");
+                const infoRow = sheet.getRow(2);
+                const prodInfo = kode_produk ? `Produk Kode: ${kode_produk}` : "Semua Produk";
+                const periodInfo = (tgl_dari || tgl_sampai) ? `Periode: ${tgl_dari || 'Awal'} s.d. ${tgl_sampai || 'Hari Ini'}` : "Semua Periode";
+                infoRow.getCell(1).value = `${prodInfo}   |   ${periodInfo}   |   Tanggal Unduh: ${getTanggalHariIni()}`;
+                infoRow.getCell(1).font = { italic: true, size: 10, color: { argb: "FF475569" } };
+                infoRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+                infoRow.height = 20;
+
+                // 3. Summary row (A3:K3)
+                const runningBalances = { ...saldoAwalByKode };
+                let totalMasuk = 0;
+                let totalKeluar = 0;
+
+                (rows || []).forEach(r => {
+                    totalMasuk += Number(r.qty_masuk) || 0;
+                    totalKeluar += Number(r.qty_keluar) || 0;
+                });
+                const totalSaldoAkhir = totalSaldoAwal + totalMasuk - totalKeluar;
+
+                sheet.mergeCells("A3:K3");
+                const sumRow = sheet.getRow(3);
+                const summaryTxt = `[ Saldo Awal: ${totalSaldoAwal} ]   -   [ Total Masuk (+): ${totalMasuk} ]   -   [ Total Keluar (-): ${totalKeluar} ]   -   [ Saldo Sisa Akhir: ${Math.max(0, totalSaldoAkhir)} ]`;
+                sumRow.getCell(1).value = summaryTxt;
+                sumRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF1E3A8A" } };
+                sumRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+                sumRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+                sumRow.height = 25;
+
+                sheet.getRow(4).height = 15; // Row pembatas
+
+                // 4. Header Tabel (Row 5)
+                const headerCols = [
+                    { name: "No.", width: 6 },
+                    { name: "Tanggal", width: 14 },
+                    { name: "Jenis Mutasi", width: 14 },
+                    { name: "No. Referensi", width: 20 },
+                    { name: "Kode Produk", width: 16 },
+                    { name: "Nama Produk", width: 30 },
+                    { name: "Masuk (+)", width: 14 },
+                    { name: "Keluar (-)", width: 14 },
+                    { name: "Saldo Sisa", width: 14 },
+                    { name: "Lokasi", width: 20 },
+                    { name: "Keterangan", width: 30 }
+                ];
+
+                const headerRow = sheet.getRow(5);
+                headerRow.height = 26;
+                headerCols.forEach((col, idx) => {
+                    const cell = headerRow.getCell(idx + 1);
+                    cell.value = col.name;
+                    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } }; // Dark slate header
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                    cell.border = {
+                        top: { style: "thin", color: { argb: "FFCBD5E1" } },
+                        left: { style: "thin", color: { argb: "FFCBD5E1" } },
+                        bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                        right: { style: "thin", color: { argb: "FFCBD5E1" } }
+                    };
+                    sheet.getColumn(idx + 1).width = col.width;
+                });
+
+                // 5. Data Rows (Row 6+)
+                let startRow = 6;
+
+                // Sisipkan Saldo Awal di Excel jika ada tgl_dari
+                if (tgl_dari && tgl_dari.trim() !== "") {
+                    const rowSA = sheet.getRow(startRow);
+                    rowSA.height = 22;
+                    const valsSA = ["🏁", tgl_dari, "SALDO AWAL", "SALDO-AWAL", kode_produk || "-", "🏁 SALDO AWAL (Stok Bawaan Sebelum Periode)", "-", "-", totalSaldoAwal, "Gudang Utama", `Sisa stok komulatif sebelum tanggal ${tgl_dari}`];
+                    valsSA.forEach((val, idx) => {
+                        const cell = rowSA.getCell(idx + 1);
+                        cell.value = val;
+                        cell.alignment = { vertical: "middle", horizontal: (idx === 0 || idx === 1 || idx === 2 || idx === 3 || idx === 6 || idx === 7 || idx === 8) ? "center" : "left" };
+                        cell.font = { bold: true, color: { argb: "FF78350F" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } }; // Warning tint
                         cell.border = {
                             top: { style: "thin", color: { argb: "FFCBD5E1" } },
                             left: { style: "thin", color: { argb: "FFCBD5E1" } },
-                            bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                            bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
                             right: { style: "thin", color: { argb: "FFCBD5E1" } }
                         };
-                        sheet.getColumn(idx + 1).width = col.width;
                     });
+                    startRow++;
+                }
 
-                    // 5. Data Rows (Row 6+)
-                    let startRow = 6;
-
-                    // Sisipkan Saldo Awal di Excel jika ada tgl_dari
-                    if (tgl_dari && tgl_dari.trim() !== "") {
-                        const rowSA = sheet.getRow(startRow);
-                        rowSA.height = 22;
-                        const valsSA = ["🏁", tgl_dari, "SALDO AWAL", "SALDO-AWAL", kode_produk || "-", "🏁 SALDO AWAL (Stok Bawaan Sebelum Periode)", "-", "-", totalSaldoAwal, "Gudang Utama", `Sisa stok komulatif sebelum tanggal ${tgl_dari}`];
-                        valsSA.forEach((val, idx) => {
-                            const cell = rowSA.getCell(idx + 1);
-                            cell.value = val;
-                            cell.alignment = { vertical: "middle", horizontal: (idx === 0 || idx === 1 || idx === 2 || idx === 3 || idx === 6 || idx === 7 || idx === 8) ? "center" : "left" };
-                            cell.font = { bold: true, color: { argb: "FF78350F" } };
-                            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } }; // Warning tint
-                            cell.border = {
-                                top: { style: "thin", color: { argb: "FFCBD5E1" } },
-                                left: { style: "thin", color: { argb: "FFCBD5E1" } },
-                                bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
-                                right: { style: "thin", color: { argb: "FFCBD5E1" } }
-                            };
-                        });
-                        startRow++;
+                (rows || []).forEach((item, index) => {
+                    const k = item.kode_produk || 'GENERAL';
+                    if (runningBalances[k] === undefined) {
+                        runningBalances[k] = 0;
                     }
 
-                    (rows || []).forEach((item, index) => {
-                        const k = item.kode_produk || 'GENERAL';
-                        if (runningBalances[k] === undefined) {
-                            runningBalances[k] = 0;
-                        }
+                    const row = sheet.getRow(startRow);
+                    row.height = 20;
 
-                        const row = sheet.getRow(startRow);
-                        row.height = 20;
+                    const inQty = Number(item.qty_masuk) || 0;
+                    const outQty = Number(item.qty_keluar) || 0;
+                    runningBalances[k] += inQty - outQty;
 
-                        const inQty = Number(item.qty_masuk) || 0;
-                        const outQty = Number(item.qty_keluar) || 0;
-                        runningBalances[k] += inQty - outQty;
+                    const cellValues = [
+                        index + 1,
+                        item.tanggal,
+                        item.jenis,
+                        item.no_ref,
+                        item.kode_produk,
+                        item.nama_produk,
+                        inQty > 0 ? inQty : "-",
+                        outQty > 0 ? outQty : "-",
+                        Math.max(0, runningBalances[k]),
+                        item.lokasi || "Gudang Utama",
+                        item.keterangan || "-"
+                    ];
 
-                        const cellValues = [
-                            index + 1,
-                            item.tanggal,
-                            item.jenis,
-                            item.no_ref,
-                            item.kode_produk,
-                            item.nama_produk,
-                            inQty > 0 ? inQty : "-",
-                            outQty > 0 ? outQty : "-",
-                            Math.max(0, runningBalances[k]),
-                            item.lokasi || "Gudang Utama",
-                            item.keterangan || "-"
-                        ];
-
-                        cellValues.forEach((val, idx) => {
-                            const cell = row.getCell(idx + 1);
-                            cell.value = val;
-                            cell.alignment = {
-                                vertical: "middle",
-                                horizontal: (idx === 0 || idx === 1 || idx === 2 || idx === 3 || idx === 4 || idx === 6 || idx === 7 || idx === 8) ? "center" : "left"
-                            };
-                            cell.border = {
-                                top: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                left: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                right: { style: "thin", color: { argb: "FFE2E8F0" } }
-                            };
-                        });
-
-                        // Styling jenis mutasi & saldo sisa
-                        const jenisCell = row.getCell(3);
-                        if (item.jenis === "MASUK") {
-                            jenisCell.font = { bold: true, color: { argb: "FF15803D" } };
-                            row.getCell(7).font = { bold: true, color: { argb: "FF15803D" } };
-                        } else {
-                            jenisCell.font = { bold: true, color: { argb: "FFB91C1C" } };
-                            row.getCell(8).font = { bold: true, color: { argb: "FFB91C1C" } };
-                        }
-
-                        // Column Saldo Sisa Highlight
-                        const saldoCell = row.getCell(9);
-                        saldoCell.font = { bold: true, color: { argb: "FF1E3A8A" } };
-                        saldoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
-
-                        startRow++;
+                    cellValues.forEach((val, idx) => {
+                        const cell = row.getCell(idx + 1);
+                        cell.value = val;
+                        cell.alignment = {
+                            vertical: "middle",
+                            horizontal: (idx === 0 || idx === 1 || idx === 2 || idx === 3 || idx === 4 || idx === 6 || idx === 7 || idx === 8) ? "center" : "left"
+                        };
+                        cell.border = {
+                            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            right: { style: "thin", color: { argb: "FFE2E8F0" } }
+                        };
                     });
 
-                    // Footer Tanda Tangan
-                    startRow += 2;
-                    const ftRow1 = sheet.getRow(startRow);
-                    ftRow1.getCell(2).value = "Mengetahui,";
-                    ftRow1.getCell(2).font = { bold: true };
-                    ftRow1.getCell(9).value = `Yogyakarta, ${getTanggalHariIni()}`;
-                    ftRow1.getCell(9).font = { bold: true };
+                    // Styling jenis mutasi & saldo sisa
+                    const jenisCell = row.getCell(3);
+                    if (item.jenis === "MASUK") {
+                        jenisCell.font = { bold: true, color: { argb: "FF15803D" } };
+                        row.getCell(7).font = { bold: true, color: { argb: "FF15803D" } };
+                    } else {
+                        jenisCell.font = { bold: true, color: { argb: "FFB91C1C" } };
+                        row.getCell(8).font = { bold: true, color: { argb: "FFB91C1C" } };
+                    }
+
+                    // Column Saldo Sisa Highlight
+                    const saldoCell = row.getCell(9);
+                    saldoCell.font = { bold: true, color: { argb: "FF1E3A8A" } };
+                    saldoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
 
                     startRow++;
-                    const ftRow2 = sheet.getRow(startRow);
-                    ftRow2.getCell(2).value = "Kepala Subbagian Rumah Tangga & Perlengkapan";
-                    ftRow2.getCell(9).value = "Petugas Pengelola & Pengurus Barang";
+                });
 
-                    startRow += 4;
-                    const ftRow3 = sheet.getRow(startRow);
-                    ftRow3.getCell(2).value = "------------------------------------------";
-                    ftRow3.getCell(9).value = "------------------------------------------";
+                // Footer Tanda Tangan
+                startRow += 2;
+                const ftRow1 = sheet.getRow(startRow);
+                ftRow1.getCell(2).value = "Mengetahui,";
+                ftRow1.getCell(2).font = { bold: true };
+                ftRow1.getCell(9).value = `Yogyakarta, ${getTanggalHariIni()}`;
+                ftRow1.getCell(9).font = { bold: true };
 
-                    const tanggalStr = getTanggalHariIni();
-                    const namaFile = `Kartu_Stok_${tanggalStr}.xlsx`;
-                    const filePath = path.join(EXPORTS_DIR, namaFile);
-                    await workbook.xlsx.writeFile(filePath);
+                startRow++;
+                const ftRow2 = sheet.getRow(startRow);
+                ftRow2.getCell(2).value = "Kepala Subbagian Rumah Tangga & Perlengkapan";
+                ftRow2.getCell(9).value = "Petugas Pengelola & Pengurus Barang";
 
-                    res.download(filePath, namaFile, (downloadErr) => {
-                        if (downloadErr) console.error("Gagal mendownload Kartu Stok Excel:", downloadErr);
-                    });
-                } catch (excelErr) {
-                    console.error("Gagal membuat Kartu Stok Excel:", excelErr);
-                    res.status(500).json({ success: false, message: "Gagal membuat file Excel Kartu Stok." });
-                }
-            });
+                startRow += 4;
+                const ftRow3 = sheet.getRow(startRow);
+                ftRow3.getCell(2).value = "------------------------------------------";
+                ftRow3.getCell(9).value = "------------------------------------------";
+
+                const tanggalStr = getTanggalHariIni();
+                const namaFile = `Kartu_Stok_${tanggalStr}.xlsx`;
+                const filePath = path.join(EXPORTS_DIR, namaFile);
+                await workbook.xlsx.writeFile(filePath);
+
+                res.download(filePath, namaFile, (downloadErr) => {
+                    if (downloadErr) console.error("Gagal mendownload Kartu Stok Excel:", downloadErr);
+                });
+            } catch (excelErr) {
+                console.error("Gagal membuat Kartu Stok Excel:", excelErr);
+                res.status(500).json({ success: false, message: "Gagal membuat file Excel Kartu Stok." });
+            }
         });
     } catch (err) {
         console.error("Gagal export kartu stok:", err);
@@ -2154,206 +2146,197 @@ const exportKartuStok = async (req, res) => {
 };
 
 // Export Rekap Pemakaian Barang / Barang Keluar Ke Excel
-const exportPemakaianBarang = (req, res) => {
+const exportPemakaianBarang = async (req, res) => {
     try {
         const { tgl_dari, tgl_sampai, kode_produk, kategori, q, sort } = req.query;
 
-        let sql = `SELECT * FROM pemakaian WHERE 1=1`;
-        const params = [];
+        const allPemakaian = await prisma.pemakaian.findMany();
 
-        if (kode_produk && kode_produk.trim() !== "") {
-            sql += ` AND kode_produk = ?`;
-            params.push(kode_produk.trim());
-        }
+        let filtered = allPemakaian.filter(item => {
+            const pDate = item.tanggal_pemakaian
+                ? item.tanggal_pemakaian.slice(0, 10)
+                : (item.created_at ? new Date(item.created_at).toISOString().slice(0, 10) : "");
 
-        if (kategori && kategori.trim() !== "" && kategori !== "Semua") {
-            sql += ` AND (kategori = ? OR kode_produk IN (SELECT kode FROM master_barang WHERE kategori = ?))`;
-            params.push(kategori.trim(), kategori.trim());
-        }
+            if (kode_produk && kode_produk.trim() !== "" && item.kode_produk !== kode_produk.trim()) return false;
+            if (kategori && kategori.trim() !== "" && kategori !== "Semua" && (item.kategori || "").toLowerCase() !== kategori.trim().toLowerCase()) return false;
+            if (tgl_dari && tgl_dari.trim() !== "" && pDate < tgl_dari.trim()) return false;
+            if (tgl_sampai && tgl_sampai.trim() !== "" && pDate > tgl_sampai.trim()) return false;
 
-        if (tgl_dari && tgl_dari.trim() !== "") {
-            sql += ` AND DATE(COALESCE(tanggal_pemakaian, created_at)) >= ?`;
-            params.push(tgl_dari.trim());
-        }
-
-        if (tgl_sampai && tgl_sampai.trim() !== "") {
-            sql += ` AND DATE(COALESCE(tanggal_pemakaian, created_at)) <= ?`;
-            params.push(tgl_sampai.trim());
-        }
-
-        if (q && q.trim() !== "") {
-            const term = `%${q.trim()}%`;
-            sql += ` AND (
-                no_order LIKE ? OR
-                kode_produk LIKE ? OR
-                nama_produk LIKE ? OR
-                penerima LIKE ? OR
-                keterangan LIKE ?
-            )`;
-            params.push(term, term, term, term, term);
-        }
-
-        const sortDir = (sort === "terlama") ? "ASC" : "DESC";
-        sql += ` ORDER BY COALESCE(tanggal_pemakaian, created_at) ${sortDir}, id ${sortDir}`;
-
-        db.all(sql, params, (err, rows) => {
-            if (err) {
-                return res.status(500).json({ success: false, message: err.message });
+            if (q && q.trim() !== "") {
+                const term = q.trim().toLowerCase();
+                const matchNoOrder = (item.no_order || "").toLowerCase().includes(term);
+                const matchKode = (item.kode_produk || "").toLowerCase().includes(term);
+                const matchNama = (item.nama_produk || "").toLowerCase().includes(term);
+                const matchPenerima = (item.penerima || "").toLowerCase().includes(term);
+                const matchKeterangan = (item.keterangan || "").toLowerCase().includes(term);
+                if (!matchNoOrder && !matchKode && !matchNama && !matchPenerima && !matchKeterangan) return false;
             }
 
-            getSystemSettings(async (settings) => {
-                try {
-                    const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "Sistem Inventaris - Gedung Agung";
-                    workbook.created = new Date();
+            return true;
+        });
 
-                    const sheet = workbook.addWorksheet("Pemakaian Barang");
+        const sortDir = (sort === "terlama") ? 1 : -1;
+        filtered.sort((a, b) => {
+            const dateA = a.tanggal_pemakaian || (a.created_at ? new Date(a.created_at).toISOString().slice(0, 10) : "");
+            const dateB = b.tanggal_pemakaian || (b.created_at ? new Date(b.created_at).toISOString().slice(0, 10) : "");
+            if (dateA !== dateB) return (dateA.localeCompare(dateB)) * sortDir;
+            return (a.id - b.id) * sortDir;
+        });
 
-                    // Title
-                    sheet.mergeCells("A1:J1");
-                    const tRow = sheet.getRow(1);
-                    const instansiText = (settings.nama_instansi && settings.sub_instansi)
-                        ? `${settings.nama_instansi.toUpperCase()} - ${settings.sub_instansi.toUpperCase()}`
-                        : "ISTANA KEPRESIDENAN YOGYAKARTA";
-                    tRow.getCell(1).value = `REKAPITULASI PEMAKAIAN / BARANG KELUAR - ${instansiText}`;
-                    tRow.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
-                    tRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-                    tRow.height = 30;
+        const rows = filtered;
 
-                    // Info Subtitle
-                    sheet.mergeCells("A2:J2");
-                    const infoRow = sheet.getRow(2);
-                    const periodInfo = (tgl_dari || tgl_sampai) ? `Periode: ${tgl_dari || 'Awal'} s.d. ${tgl_sampai || 'Hari Ini'}` : "Semua Periode";
-                    const katInfo = kategori ? `Kategori: ${kategori}` : "Semua Kategori";
-                    infoRow.getCell(1).value = `${katInfo}   |   ${periodInfo}   |   Tanggal Unduh: ${getTanggalHariIni()}`;
-                    infoRow.getCell(1).font = { italic: true, size: 10, color: { argb: "FF475569" } };
-                    infoRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-                    infoRow.height = 20;
+        getSystemSettings(async (settings) => {
+            try {
+                const workbook = new ExcelJS.Workbook();
+                workbook.creator = "Sistem Inventaris - Gedung Agung";
+                workbook.created = new Date();
 
-                    sheet.getRow(3).height = 10;
+                const sheet = workbook.addWorksheet("Pemakaian Barang");
 
-                    // Header Cols
-                    const headerCols = [
-                        { name: "No.", width: 6 },
-                        { name: "No. Order", width: 22 },
-                        { name: "Kode Produk", width: 16 },
-                        { name: "Nama Produk", width: 32 },
-                        { name: "Kategori", width: 20 },
-                        { name: "Jumlah Keluar", width: 15 },
-                        { name: "Satuan", width: 12 },
-                        { name: "Tgl Pemakaian", width: 16 },
-                        { name: "Penerima", width: 24 },
-                        { name: "Keterangan", width: 30 }
+                // Title
+                sheet.mergeCells("A1:J1");
+                const tRow = sheet.getRow(1);
+                const instansiText = (settings.nama_instansi && settings.sub_instansi)
+                    ? `${settings.nama_instansi.toUpperCase()} - ${settings.sub_instansi.toUpperCase()}`
+                    : "ISTANA KEPRESIDENAN YOGYAKARTA";
+                tRow.getCell(1).value = `REKAPITULASI PEMAKAIAN / BARANG KELUAR - ${instansiText}`;
+                tRow.getCell(1).font = { bold: true, size: 14, color: { argb: "FF0F172A" } };
+                tRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+                tRow.height = 30;
+
+                // Info Subtitle
+                sheet.mergeCells("A2:J2");
+                const infoRow = sheet.getRow(2);
+                const periodInfo = (tgl_dari || tgl_sampai) ? `Periode: ${tgl_dari || 'Awal'} s.d. ${tgl_sampai || 'Hari Ini'}` : "Semua Periode";
+                const katInfo = kategori ? `Kategori: ${kategori}` : "Semua Kategori";
+                infoRow.getCell(1).value = `${katInfo}   |   ${periodInfo}   |   Tanggal Unduh: ${getTanggalHariIni()}`;
+                infoRow.getCell(1).font = { italic: true, size: 10, color: { argb: "FF475569" } };
+                infoRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+                infoRow.height = 20;
+
+                sheet.getRow(3).height = 10;
+
+                // Header Cols
+                const headerCols = [
+                    { name: "No.", width: 6 },
+                    { name: "No. Order", width: 22 },
+                    { name: "Kode Produk", width: 16 },
+                    { name: "Nama Produk", width: 32 },
+                    { name: "Kategori", width: 20 },
+                    { name: "Jumlah Keluar", width: 15 },
+                    { name: "Satuan", width: 12 },
+                    { name: "Tgl Pemakaian", width: 16 },
+                    { name: "Penerima", width: 24 },
+                    { name: "Keterangan", width: 30 }
+                ];
+
+                const headerRow = sheet.getRow(4);
+                headerRow.height = 26;
+                headerCols.forEach((col, idx) => {
+                    const cell = headerRow.getCell(idx + 1);
+                    cell.value = col.name;
+                    cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                    cell.border = {
+                        top: { style: "thin", color: { argb: "FFCBD5E1" } },
+                        left: { style: "thin", color: { argb: "FFCBD5E1" } },
+                        bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                        right: { style: "thin", color: { argb: "FFCBD5E1" } }
+                    };
+                    sheet.getColumn(idx + 1).width = col.width;
+                });
+
+                let startRow = 5;
+                let totalUnits = 0;
+
+                (rows || []).forEach((item, index) => {
+                    const row = sheet.getRow(startRow);
+                    row.height = 22;
+                    const qty = Number(item.jumlah) || 0;
+                    totalUnits += qty;
+
+                    const rowVals = [
+                        index + 1,
+                        item.no_order || "-",
+                        item.kode_produk || "-",
+                        item.nama_produk || "-",
+                        item.kategori || "-",
+                        qty,
+                        item.satuan || "Pcs",
+                        item.tanggal_pemakaian || (item.created_at ? String(item.created_at).slice(0, 10) : "-"),
+                        item.penerima || "-",
+                        item.keterangan || "-"
                     ];
 
-                    const headerRow = sheet.getRow(4);
-                    headerRow.height = 26;
-                    headerCols.forEach((col, idx) => {
-                        const cell = headerRow.getCell(idx + 1);
-                        cell.value = col.name;
-                        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
-                        cell.alignment = { vertical: "middle", horizontal: "center" };
-                        cell.border = {
-                            top: { style: "thin", color: { argb: "FFCBD5E1" } },
-                            left: { style: "thin", color: { argb: "FFCBD5E1" } },
-                            bottom: { style: "medium", color: { argb: "FF0F172A" } },
-                            right: { style: "thin", color: { argb: "FFCBD5E1" } }
+                    rowVals.forEach((val, cIdx) => {
+                        const cell = row.getCell(cIdx + 1);
+                        cell.value = val;
+                        cell.alignment = {
+                            vertical: "middle",
+                            horizontal: (cIdx === 0 || cIdx === 1 || cIdx === 2 || cIdx === 6 || cIdx === 7) ? "center" : (cIdx === 5 ? "right" : "left")
                         };
-                        sheet.getColumn(idx + 1).width = col.width;
-                    });
-
-                    let startRow = 5;
-                    let totalUnits = 0;
-
-                    (rows || []).forEach((item, index) => {
-                        const row = sheet.getRow(startRow);
-                        row.height = 22;
-                        const qty = Number(item.jumlah) || 0;
-                        totalUnits += qty;
-
-                        const rowVals = [
-                            index + 1,
-                            item.no_order || "-",
-                            item.kode_produk || "-",
-                            item.nama_produk || "-",
-                            item.kategori || "-",
-                            qty,
-                            item.satuan || "Pcs",
-                            item.tanggal_pemakaian || (item.created_at ? String(item.created_at).slice(0, 10) : "-"),
-                            item.penerima || "-",
-                            item.keterangan || "-"
-                        ];
-
-                        rowVals.forEach((val, cIdx) => {
-                            const cell = row.getCell(cIdx + 1);
-                            cell.value = val;
-                            cell.alignment = {
-                                vertical: "middle",
-                                horizontal: (cIdx === 0 || cIdx === 1 || cIdx === 2 || cIdx === 6 || cIdx === 7) ? "center" : (cIdx === 5 ? "right" : "left")
-                            };
-                            cell.border = {
-                                top: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                left: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-                                right: { style: "thin", color: { argb: "FFE2E8F0" } }
-                            };
-                        });
-                        startRow++;
-                    });
-
-                    // Total Summary Row
-                    const summaryRow = sheet.getRow(startRow);
-                    summaryRow.height = 25;
-                    sheet.mergeCells(`A${startRow}:E${startRow}`);
-                    summaryRow.getCell(1).value = `TOTAL KESELURUHAN (${rows.length} Transaksi)`;
-                    summaryRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF0F172A" } };
-                    summaryRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
-
-                    summaryRow.getCell(6).value = totalUnits;
-                    summaryRow.getCell(6).font = { bold: true, size: 11, color: { argb: "FF0F172A" } };
-                    summaryRow.getCell(6).alignment = { horizontal: "right", vertical: "middle" };
-
-                    for (let c = 1; c <= 10; c++) {
-                        const cell = summaryRow.getCell(c);
-                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
                         cell.border = {
-                            top: { style: "medium", color: { argb: "FFD97706" } },
-                            bottom: { style: "medium", color: { argb: "FFD97706" } },
-                            left: { style: "thin", color: { argb: "FFFDE68A" } },
-                            right: { style: "thin", color: { argb: "FFFDE68A" } }
+                            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                            right: { style: "thin", color: { argb: "FFE2E8F0" } }
                         };
-                    }
-
-                    // Tanda Tangan Footer
-                    startRow += 3;
-                    const ftRow1 = sheet.getRow(startRow);
-                    ftRow1.getCell(2).value = "Mengetahui,";
-                    ftRow1.getCell(8).value = `Yogyakarta, ${getTanggalHariIni()}`;
-
+                    });
                     startRow++;
-                    const ftRow2 = sheet.getRow(startRow);
-                    ftRow2.getCell(2).value = "Kepala Subbagian Rumah Tangga & Perlengkapan";
-                    ftRow2.getCell(8).value = "Petugas Pengelola & Pengurus Barang";
+                });
 
-                    startRow += 4;
-                    const ftRow3 = sheet.getRow(startRow);
-                    ftRow3.getCell(2).value = "------------------------------------------";
-                    ftRow3.getCell(8).value = "------------------------------------------";
+                // Total Summary Row
+                const summaryRow = sheet.getRow(startRow);
+                summaryRow.height = 25;
+                sheet.mergeCells(`A${startRow}:E${startRow}`);
+                summaryRow.getCell(1).value = `TOTAL KESELURUHAN (${rows.length} Transaksi)`;
+                summaryRow.getCell(1).font = { bold: true, size: 11, color: { argb: "FF0F172A" } };
+                summaryRow.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
 
-                    const tanggalStr = getTanggalHariIni();
-                    const namaFile = `Rekap_Pemakaian_Barang_${tanggalStr}.xlsx`;
-                    const filePath = path.join(EXPORTS_DIR, namaFile);
-                    await workbook.xlsx.writeFile(filePath);
+                summaryRow.getCell(6).value = totalUnits;
+                summaryRow.getCell(6).font = { bold: true, size: 11, color: { argb: "FF0F172A" } };
+                summaryRow.getCell(6).alignment = { horizontal: "right", vertical: "middle" };
 
-                    res.download(filePath, namaFile, (downloadErr) => {
-                        if (downloadErr) console.error("Gagal mendownload Rekap Pemakaian Excel:", downloadErr);
-                    });
-                } catch (excelErr) {
-                    console.error("Gagal membuat Excel Pemakaian:", excelErr);
-                    res.status(500).json({ success: false, message: "Gagal membuat file Excel Rekap Pemakaian." });
+                for (let c = 1; c <= 10; c++) {
+                    const cell = summaryRow.getCell(c);
+                    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+                    cell.border = {
+                        top: { style: "medium", color: { argb: "FFD97706" } },
+                        bottom: { style: "medium", color: { argb: "FFD97706" } },
+                        left: { style: "thin", color: { argb: "FFFDE68A" } },
+                        right: { style: "thin", color: { argb: "FFFDE68A" } }
+                    };
                 }
-            });
+
+                // Tanda Tangan Footer
+                startRow += 3;
+                const ftRow1 = sheet.getRow(startRow);
+                ftRow1.getCell(2).value = "Mengetahui,";
+                ftRow1.getCell(8).value = `Yogyakarta, ${getTanggalHariIni()}`;
+
+                startRow++;
+                const ftRow2 = sheet.getRow(startRow);
+                ftRow2.getCell(2).value = "Kepala Subbagian Rumah Tangga & Perlengkapan";
+                ftRow2.getCell(8).value = "Petugas Pengelola & Pengurus Barang";
+
+                startRow += 4;
+                const ftRow3 = sheet.getRow(startRow);
+                ftRow3.getCell(2).value = "------------------------------------------";
+                ftRow3.getCell(8).value = "------------------------------------------";
+
+                const tanggalStr = getTanggalHariIni();
+                const namaFile = `Rekap_Pemakaian_Barang_${tanggalStr}.xlsx`;
+                const filePath = path.join(EXPORTS_DIR, namaFile);
+                await workbook.xlsx.writeFile(filePath);
+
+                res.download(filePath, namaFile, (downloadErr) => {
+                    if (downloadErr) console.error("Gagal mendownload Rekap Pemakaian Excel:", downloadErr);
+                });
+            } catch (excelErr) {
+                console.error("Gagal membuat Excel Pemakaian:", excelErr);
+                res.status(500).json({ success: false, message: "Gagal membuat file Excel Rekap Pemakaian." });
+            }
         });
     } catch (err) {
         console.error("Gagal export pemakaian barang:", err);
@@ -2363,20 +2346,33 @@ const exportPemakaianBarang = (req, res) => {
 
 const resetAllInventoryData = async (req, res) => {
     try {
-        const tables = ['barang', 'pemakaian', 'nama_barang', 'sub_kategori', 'kategori', 'satuan', 'lokasi'];
-        db.run('SET FOREIGN_KEY_CHECKS = 0', [], () => {
-            Promise.all(tables.map(t => new Promise(r => db.run('TRUNCATE TABLE ' + t, [], () => r())))).then(() => {
-                db.run("INSERT INTO kategori (nama_kategori) VALUES ('Umum'), ('ATK'), ('Elektronik'), ('Kebersihan'), ('Konsumsi')");
-                db.run("INSERT INTO satuan (nama_satuan) VALUES ('Pcs'), ('Rim'), ('Dus'), ('Box'), ('Botol'), ('Pack'), ('Unit')");
-                db.run("INSERT INTO lokasi (nama_lokasi) VALUES ('Gudang Utama'), ('Gudang ATK'), ('Ruang Server')");
-                db.run('SET FOREIGN_KEY_CHECKS = 1', [], () => {
-                    return res.json({ success: true, message: "Seluruh data transaksi dan stok barang telah dikosongkan secara bersih!" });
-                });
-            });
-        });
+        await prisma.pemakaian.deleteMany();
+        await prisma.barang.deleteMany();
+        await prisma.namaBarang.deleteMany();
+        await prisma.subKategori.deleteMany();
+        await prisma.kategori.deleteMany();
+        await prisma.satuan.deleteMany();
+        await prisma.lokasi.deleteMany();
+
+        const defaultKategori = ['Umum', 'ATK', 'Elektronik', 'Kebersihan', 'Konsumsi'];
+        for (const k of defaultKategori) {
+            await prisma.kategori.create({ data: { nama_kategori: k } }).catch(() => {});
+        }
+
+        const defaultSatuan = ['Pcs', 'Rim', 'Dus', 'Box', 'Botol', 'Pack', 'Unit'];
+        for (const s of defaultSatuan) {
+            await prisma.satuan.create({ data: { nama_satuan: s } }).catch(() => {});
+        }
+
+        const defaultLokasi = ['Gudang Utama', 'Gudang ATK', 'Ruang Server'];
+        for (const l of defaultLokasi) {
+            await prisma.lokasi.create({ data: { nama_lokasi: l } }).catch(() => {});
+        }
+
+        return res.json({ success: true, message: "Seluruh data transaksi dan stok barang telah dikosongkan secara bersih!" });
     } catch (err) {
         console.error("Gagal mengosongkan data tabel:", err);
-        return res.status(500).json({ success: false, message: "Gagal mengosongkan data tabel." });
+        return res.status(500).json({ success: false, message: "Gagal mengosongkan data tabel: " + err.message });
     }
 };
 
