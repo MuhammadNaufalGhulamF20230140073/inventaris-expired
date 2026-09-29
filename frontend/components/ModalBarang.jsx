@@ -127,9 +127,19 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                 setTanggalMasukGlobal(existingDate);
                 setNoPenerimaan(existingNoPenerimaan);
 
+                // Default form atas selalu BERSIH / CLEAR (tidak auto-populate sebelum user klik item)
+                setForm(initialForm);
+                setEditingCartId(null);
+                setIsNamaLainnya(false);
+                setIsKatLainnya(false);
+                setIsSubKatLainnya(false);
+                setIsSatLainnya(false);
+                setIsLokLainnya(false);
+                setIsNoExpired(false);
+
                 const fallbackItem = {
                     idDraft: editData.id || editData.kode_produk || Date.now(),
-                    id: editData.id,         // ← WAJIB: agar backend bisa update by ID
+                    id: editData.id,         // ← ID database
                     isExisting: true,
                     kode_produk: editData.kode_produk || "",
                     nama_produk: editData.nama_produk || "",
@@ -142,27 +152,13 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                     is_no_expired: Number(editData.is_no_expired) === 1 ? 1 : 0
                 };
 
-                // Prepopulate form dengan item edit pertama
-                setForm({
-                    kode_produk: editData.kode_produk || "",
-                    nama_produk: editData.nama_produk || "",
-                    kategori: editData.kategori || "",
-                    sub_kategori: editData.sub_kategori || "",
-                    satuan: editData.satuan || "",
-                    jumlah: parseInt(editData.jumlah, 10) || 1,
-                    tanggal_expired: editData.tanggal_expired || "",
-                    lokasi: editData.lokasi || ""
-                });
-                setIsNoExpired(Number(editData.is_no_expired) === 1);
-                setEditingCartId(fallbackItem.idDraft);
-
                 if (existingNoPenerimaan) {
                     axios.get(`${API_BARANG}/penerimaan/${encodeURIComponent(existingNoPenerimaan)}`)
                         .then(res => {
                             if (res.data?.success && res.data.data && res.data.data.length > 0) {
                                 const mapped = res.data.data.map((r, idx) => ({
                                     idDraft: r.id || r.kode_produk || (Date.now() + idx),
-                                    id: r.id,        // ← WAJIB: agar backend bisa update by ID
+                                    id: r.id,        // ← ID database
                                     isExisting: true,
                                     kode_produk: r.kode_produk || "",
                                     nama_produk: r.nama_produk || "",
@@ -175,19 +171,6 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
                                     is_no_expired: Number(r.is_no_expired) === 1 ? 1 : 0
                                 }));
                                 setCartItems(mapped);
-                                // Set edit id ke item pertama
-                                setEditingCartId(mapped[0].idDraft);
-                                setForm({
-                                    kode_produk: mapped[0].kode_produk || "",
-                                    nama_produk: mapped[0].nama_produk || "",
-                                    kategori: mapped[0].kategori || "",
-                                    sub_kategori: mapped[0].sub_kategori || "",
-                                    satuan: mapped[0].satuan || "",
-                                    jumlah: parseInt(mapped[0].jumlah, 10) || 1,
-                                    tanggal_expired: mapped[0].tanggal_expired || "",
-                                    lokasi: mapped[0].lokasi || ""
-                                });
-                                setIsNoExpired(Number(mapped[0].is_no_expired) === 1);
                             } else {
                                 setCartItems([fallbackItem]);
                             }
@@ -422,15 +405,15 @@ function ModalBarang({ show, handleClose, editData, refreshData }) {
             sub_kategori: itemToEdit.sub_kategori || "",
             satuan: itemToEdit.satuan || "",
             jumlah: itemToEdit.jumlah || "",
-            tanggal_expired: itemToEdit.tanggal_expired || "",
+            tanggal_expired: Number(itemToEdit.is_no_expired) === 1 ? "" : (itemToEdit.tanggal_expired || ""),
             lokasi: itemToEdit.lokasi || ""
         });
 
         setIsNamaLainnya(false);
-        setIsKatLainnya(false);
-        setIsSubKatLainnya(false);
-        setIsSatLainnya(false);
-        setIsLokLainnya(false);
+        setIsKatLainnya(!kategoris.some(k => k.nama_kategori === itemToEdit.kategori) && Boolean(itemToEdit.kategori));
+        setIsSubKatLainnya(!subKategoris.some(sk => sk.nama_sub_kategori === itemToEdit.sub_kategori) && Boolean(itemToEdit.sub_kategori));
+        setIsSatLainnya(!satuans.some(s => s.nama_satuan === itemToEdit.satuan) && Boolean(itemToEdit.satuan));
+        setIsLokLainnya(!lokasis.some(l => l.nama_lokasi === itemToEdit.lokasi) && Boolean(itemToEdit.lokasi));
         setIsNoExpired(Number(itemToEdit.is_no_expired) === 1);
     };
 

@@ -588,15 +588,15 @@ const updateBatchPenerimaan = async (req, res) => {
                 if (existingById) {
                     await prisma.barang.update({
                         where: { id: targetId },
-                        data: { ...dataUpdate, kode_produk: cleanKode }
+                        data: { ...dataUpdate, kode_produk: cleanKode, no_penerimaan }
                     });
                 } else {
-                    // Jika id tidak ditemukan di DB, fallback coba cari by kode_produk & no_penerimaan
+                    // Jika id tidak ditemukan di DB, fallback cari berdasarkan no_penerimaan & kode_produk
                     const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
                     if (existingByKode) {
                         await prisma.barang.update({
                             where: { id: existingByKode.id },
-                            data: dataUpdate
+                            data: { ...dataUpdate, no_penerimaan }
                         });
                     } else {
                         await prisma.barang.create({
@@ -608,13 +608,13 @@ const updateBatchPenerimaan = async (req, res) => {
                         });
                     }
                 }
-            } else if (isExisting && cleanKode) {
+            } else if (cleanKode) {
                 // Update record yang ada berdasarkan no_penerimaan dan kode_produk
                 const existingByKode = await prisma.barang.findFirst({ where: { no_penerimaan, kode_produk: cleanKode } });
                 if (existingByKode) {
                     await prisma.barang.update({
                         where: { id: existingByKode.id },
-                        data: dataUpdate
+                        data: { ...dataUpdate, no_penerimaan }
                     });
                 } else {
                     await prisma.barang.create({
@@ -626,7 +626,7 @@ const updateBatchPenerimaan = async (req, res) => {
                     });
                 }
             } else {
-                // Tambah record barang baru ke transaksi penerimaan ini
+                // Tambah record baru
                 await prisma.barang.create({
                     data: {
                         no_penerimaan,
