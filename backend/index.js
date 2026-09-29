@@ -48,6 +48,32 @@ app.get(["/api/health", "/health"], (req, res) => {
     res.json({ success: true, message: "API berjalan normal.", timestamp: new Date().toISOString() });
 });
 
+// Auto-fix PostgreSQL sequences (dipanggil saat startup untuk menghindari ID conflict)
+const prisma = require("./prismaClient");
+async function fixPostgresSequences() {
+    try {
+        const tables = ["barang", "nama_barang", "pemakaian", "kategori", "sub_kategori", "satuan", "lokasi", "users"];
+        for (const table of tables) {
+            await prisma.$executeRawUnsafe(
+                `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE((SELECT MAX(id) FROM "${table}"), 1), true)`
+            );
+        }
+        console.log("✅ PostgreSQL sequences auto-fixed.");
+    } catch (e) {
+        console.log("ℹ️  Sequence fix skipped:", e.message?.slice(0, 60));
+    }
+}
+
+// Endpoint manual reset sequences (untuk admin)
+app.get(["/api/fix-sequences", "/fix-sequences"], async (req, res) => {
+    await fixPostgresSequences();
+    res.json({ success: true, message: "Sequences berhasil di-reset." });
+});
+
+// Panggil saat startup
+fixPostgresSequences();
+
+
 // Serve static frontend files (local/non-Vercel)
 const path = require("path");
 app.use(express.static(path.join(__dirname, "public")));
