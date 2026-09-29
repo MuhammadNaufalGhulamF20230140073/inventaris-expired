@@ -4,9 +4,9 @@ import axios from "axios";
 import { BoxSeam, CartPlusFill, Trash, PersonFill, PlusLg, CheckCircleFill, Receipt, Search, LockFill, PencilFill } from "react-bootstrap-icons";
 
 function ModalPemakaian({ show, handleClose, refreshData, editData }) {
-    const API_NAMA_BARANG = "http://localhost:3000/api/nama-barang";
-    const API_USERS = "http://localhost:3000/api/users";
-    const API_PEMAKAIAN = "http://localhost:3000/api/pemakaian";
+    const API_NAMA_BARANG = "/api/nama-barang";
+    const API_USERS = "/api/users";
+    const API_PEMAKAIAN = "/api/pemakaian";
 
     const [products, setProducts] = useState([]);
     const [allUsers, setAllUsers] = useState([]);

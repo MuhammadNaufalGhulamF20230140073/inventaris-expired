@@ -4,12 +4,12 @@ import { Receipt, BoxSeam, CartPlusFill, Trash, CheckCircleFill, PencilFill, XCi
 import axios from "axios";
 
 function ModalBarang({ show, handleClose, editData, refreshData }) {
-    const API_BARANG = "http://localhost:3000/api/barang";
-    const API_NAMA_BARANG = "http://localhost:3000/api/nama-barang";
-    const API_USERS = "http://localhost:3000/api/users";
-    const API_KAT = "http://localhost:3000/api/kategori";
-    const API_SAT = "http://localhost:3000/api/satuan";
-    const API_LOK = "http://localhost:3000/api/lokasi";
+    const API_BARANG = "/api/barang";
+    const API_NAMA_BARANG = "/api/nama-barang";
+    const API_USERS = "/api/users";
+    const API_KAT = "/api/kategori";
+    const API_SAT = "/api/satuan";
+    const API_LOK = "/api/lokasi";
 
     // Master Relational Data
     const [namaBarangs, setNamaBarangs] = useState([]);
