@@ -42,6 +42,21 @@ function DataBarang() {
     const [saving, setSaving] = useState(false);
     const [exportingOpname, setExportingOpname] = useState(false);
 
+    const loadMasterOptions = async () => {
+        try {
+            const [resKat, resSat, resLok] = await Promise.all([
+                axios.get("/api/kategori"),
+                axios.get("/api/satuan"),
+                axios.get("/api/lokasi")
+            ]);
+            if (resKat.data?.success) setKategoris(resKat.data.data);
+            if (resSat.data?.success) setSatuans(resSat.data.data);
+            if (resLok.data?.success) setLokasis(resLok.data.data);
+        } catch (err) {
+            console.error("Gagal memuat data master options:", err);
+        }
+    };
+
     const loadData = async () => {
         try {
             setLoading(true);
@@ -205,7 +220,9 @@ function DataBarang() {
                 alert(res.data.message || "Data ditambahkan.");
             }
             handleClose();
-            loadData();
+            // Reload semua data termasuk master options (satuan, lokasi, sub_kategori baru)
+            await loadData();
+            await loadMasterOptions();
         } catch (err) {
             alert(err.response?.data?.message || "Terjadi kesalahan.");
         } finally {

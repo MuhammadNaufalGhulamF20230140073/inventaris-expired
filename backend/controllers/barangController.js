@@ -192,7 +192,7 @@ const tambahBarang = async (req, res) => {
             }
         });
 
-        syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, kode_produk);
+        await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, kode_produk);
 
         return res.status(201).json({ success: true, merged: false, message: `Penerimaan barang baru berhasil disimpan (No. Masuk: ${cleanNoPenerimaan}).` });
     } catch (err) {
@@ -312,7 +312,7 @@ const updateBarang = async (req, res) => {
         if (!where.id) return res.status(404).json({ success: false, message: "Barang tidak ditemukan." });
 
         await prisma.barang.update({ where: { id: where.id }, data });
-        syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, null);
+        await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, null);
         res.json({ success: true, message: "Barang berhasil diperbarui." });
     } catch (err) {
         if (err.code === "P2025") return res.status(404).json({ success: false, message: "Barang tidak ditemukan." });
@@ -496,7 +496,7 @@ const createBatchPenerimaan = async (req, res) => {
                 }
             });
 
-            syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, cleanKode);
+            await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, cleanKode);
             processedCount++;
         }
 
@@ -591,7 +591,7 @@ const updateBatchPenerimaan = async (req, res) => {
                         is_no_expired: Number(is_no_expired) === 1 ? 1 : 0
                     }
                 });
-                syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, cleanKode);
+                await syncMasterData(kategori, sub_kategori, satuan, lokasi, nama_produk, cleanKode);
             }
         }
 

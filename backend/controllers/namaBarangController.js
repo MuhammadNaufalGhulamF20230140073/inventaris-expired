@@ -77,7 +77,7 @@ const createNamaBarang = async (req, res) => {
                 lokasi: lokasi?.trim() || ""
             }
         });
-        syncMasterDataHelper(kategori, sub_kategori, satuan, lokasi);
+        await syncMasterDataHelper(kategori, sub_kategori, satuan, lokasi);
         res.json({ success: true, message: "Data barang berhasil ditambahkan.", data });
     } catch (err) {
         if (err.code === "P2002") return res.status(400).json({ success: false, message: "Nama barang sudah terdaftar." });
@@ -139,7 +139,7 @@ const updateNamaBarang = async (req, res) => {
             }
         }
 
-        syncMasterDataHelper(cleanKat, cleanSub, cleanSat, cleanLok);
+        await syncMasterDataHelper(cleanKat, cleanSub, cleanSat, cleanLok);
         res.json({ success: true, message: "Data barang berhasil diperbarui dan riwayat stok telah disinkronkan." });
     } catch (err) {
         if (err.code === "P2002") return res.status(400).json({ success: false, message: "Nama barang sudah terdaftar." });
