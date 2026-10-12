@@ -331,6 +331,3 @@ inventaris-expired/
 ## 📄 Lisensi & Hak Cipta
 
 **Hak Cipta © 2026 Istana Kepresidenan Yogyakarta (Gedung Agung).**
-Dikembangkan untuk keperluan operasional kedinasan inventaris barang kepresidenan.
-
-> Sistem ini bersifat **kedinasan dan rahasia**. Dilarang mendistribusikan, memodifikasi, atau menggunakan di luar keperluan resmi tanpa izin tertulis dari pengelola sistem.
